@@ -50,9 +50,7 @@ const token=[
   'A0F78AB303FAB2F731115934FAAFA5AF',
   'CDC56C42F64CA34677E5894F28AF4871',//每日，100分；1天，200分、2豆；2天，1000分、25-3券
 ]
-
 //IOS等用户直接用NobyDa的jd cookie
-
 $.TokenList =[];
 
 if ($.isNode()) {

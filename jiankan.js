@@ -23,7 +23,9 @@ const $ = new Env("东东健康社区");
 const jdCookieNode = $.isNode() ? require("./jdCookie.js") : "";
 const notify = $.isNode() ? require('./sendNotify') : "";
 let cookiesArr = [], cookie = "", allMessage = "", message;
-const inviteCodes = [``,]
+const inviteCodes = [
+`T014-7QyGUBO9lPSKQCjVfnoaW5kRrbA@ 5J1FB5L9FWFchL9wKVeCjVfnoaW5kRrbA@T0225KkcRBdI8waFdhilwKEOdwCjVfnoaW5kRrbA@T0225KkcRRhMoFOCJkv1xqQJdgCjVfnoaW5kRrbA@T0225KkcRBYQ9VOBKBymwqECdACjVfnoaW5kRrbA@T0205KkcCnZ5tQqSfVyF7aZ0CjVfnoaW5kRrbA`,
+]
 let reward = $.isNode() ? (process.env.JD_HEALTH_REWARD_NAME ? process.env.JD_HEALTH_REWARD_NAME : '') : ($.getdata('JD_HEALTH_REWARD_NAME') ? $.getdata('JD_HEALTH_REWARD_NAME') : '');
 const randomCount = $.isNode() ? 20 : 5;
 if ($.isNode()) {

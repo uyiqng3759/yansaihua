@@ -1,12 +1,79 @@
+/*
+
+ENV
+SMZDM_COOKIE 什么值得买Cookie 多个 &区分
+
+什么值得买自动签到任务
+
+更新地址：https://github.com/Tsukasa007/my_script
+
+============Quantumultx===============
+[task_local]
+#什么值得买自动签到
+43 1/8 * * * smzdm_mission.js, tag=什么值得买自动签到, img-url=https://raw.githubusercontent.com/tsukasa007/icon/master/smzdm_mission.png, enabled=true
+
+================Loon==============
+[Script]
+cron "43 1/8 * * *" script-path=smzdm_mission.js,tag=什么值得买自动签到
+
+===============Surge=================
+什么值得买自动签到 = type=cron,cronexp="43 1/8 * * *",wake-system=1,timeout=3600,script-path=smzdm_mission.js
+
+============小火箭=========
+什么值得买自动签到 = type=cron,script-path=smzdm_mission.js, cronexpr="43 1/8 * * *", timeout=3600, enable=true
+*/
 const smzdmCookieKey = "smzdm_cookie";
 const scriptName = "什么值得买";
-let clickGoBuyMaxTimes = 0; // 好价点击去购买的次数
-let clickLikeProductMaxTimes = 0; // 好价点值次数
-let clickLikeArticleMaxTimes = 0; // 好文点赞次数
+let clickGoBuyMaxTimes = 12; // 好价点击去购买的次数
+let clickLikeProductMaxTimes = 7; // 好价点值次数
+let clickLikeArticleMaxTimes = 7; // 好文点赞次数
 let clickFavArticleMaxTimes = 7; // 好文收藏次数
 
 let magicJS = MagicJS(scriptName, "INFO");
-magicJS.barkUrl = magicJS.read("smzdm_unified_push_url") || magicJS.read("magicjs_unified_push_url");
+const $ = new Env("什么值得买自动签到");
+magicJS.unifiedPushUrl = magicJS.read("smzdm_unified_push_url") || magicJS.read("magicjs_unified_push_url");
+const notify = $.isNode() ? require('./sendNotify') : '';
+let result = []
+let cookieSMZDMs = []
+if (process.env.SMZDM_COOKIE) {
+  if (process.env.SMZDM_COOKIE.indexOf('&') > -1) {
+    cookieSMZDMs = process.env.SMZDM_COOKIE.split('&');
+  } else if (process.env.SMZDM_COOKIE.indexOf('\n') > -1) {
+    cookieSMZDMs = process.env.SMZDM_COOKIE.split('\n');
+  } else {
+    cookieSMZDMs = [process.env.SMZDM_COOKIE];
+  }
+}
+
+//签到
+function SignIn (cookie) {
+  return new Promise((resolve) => {
+    let options = {
+      url: 'https://zhiyou.smzdm.com/user/checkin/jsonp_checkin',
+      headers: {
+        "Accept": "*/*",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "zh-cn",
+        "Connection": "keep-alive",
+        "Cookie": cookie,
+        "Host": "zhiyou.smzdm.com",
+        "Referer": "https://m.smzdm.com/zhuanti/life/choujiang/",
+        "User-Agent":
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148/smzdm 9.9.0 rv:91 (iPhone 11 Pro Max; iOS 14.2; zh_CN)/iphone_smzdmapp/9.9.0/wkwebview/jsbv_1.0.0",
+      },
+    };
+    magicJS.get(options, (err, resp, data) => {
+      if (err) {
+        magicJS.logWarning(`每日签到，请求异常：${err}`);
+        resolve("");
+      } else {
+        magicJS.log(`每日签到成功`);
+        resolve("");
+      }
+    });
+  });
+}
+
 
 // 获取点击去购买和点值的链接
 function GetProductList() {
@@ -407,165 +474,187 @@ function WebGetCurrentInfo(smzdmCookie) {
 
 (async () => {
   // 通知信息
-  let title = "";
+  let title = "什么值得买";
   let subTitle = "";
   let content = "";
   // 获取Cookie
-  let smzdmCookie = __ckguid=Cjx5yW3eaBIgw2oiORrqF63; ab_test=c; active_time=1628659690; client_id=LQwh%2FZZN1gRKzv5HLoRac3YQ60Inqv474TRv57R9EiGqcc8LXedYmw%3D%3D.1628659657160; device_id=LQwh%2FZZN1gRKzv5HLoRac3YQ60Inqv474TRv57R9EiGqcc8LXedYmw%3D%3D; device_idfa=LQwh%2FZZN1gRKzv5HLoRac0CLUCRiSFnSJTYe%2FYV5NZol5NPBoBa7Gw%3D%3D; device_name=iPhone%2012%20Pro%20Max; device_push=notifications_are_disabled; device_s=LQwh%2FZZN1gRKzv5HLoRac3YQ60Inqv474TRv57R9EiGr7IZUJCr0Vnnc6iFvOVF8kVXp6SUoOs%3D; device_smzdm=iphone; device_smzdm_version=10.1.15; device_smzdm_version_code=103.2; device_system_version=14.2; device_type=iPhone13%2C4; deviceid_md5=6c2d45ebf5164fc554f03fee19ba9e74; f=iphone; font_size=normal; idfa_md5=0; is_new_user=1; latitude=4f28528c76b2708bd68e094c61a9da725f35d6ae855758d1; login=1; longitude=d54d9449aaebb601e6fdc0c0b7d3a1a83ce4e135b27196f5; network=4; osversion=18B92; partner_id=0; partner_name=AppStore; phone_sort=8X; register_time=1628659803; sensorsdata2015jssdkcross=%7B%22distinct_id%22%3A%224109026830%22%2C%22first_id%22%3A%2217bc85b3d3b15eb-0ab4ce63f4e4cf-7f372a2b-396328-17bc85b3d3c1530%22%2C%22props%22%3A%7B%22%24latest_traffic_source_type%22%3A%22%E7%9B%B4%E6%8E%A5%E6%B5%81%E9%87%8F%22%2C%22%24latest_search_keyword%22%3A%22%E6%9C%AA%E5%8F%96%E5%88%B0%E5%80%BC_%E7%9B%B4%E6%8E%A5%E6%89%93%E5%BC%80%22%2C%22%24latest_referrer%22%3A%22%22%2C%22%24latest_landing_page%22%3A%22https%3A%2F%2Fm.smzdm.com%2Ftopic%2F20210909%2F20210909%22%7D%2C%22%24device_id%22%3A%2217bc85b3d3b15eb-0ab4ce63f4e4cf-7f372a2b-396328-17bc85b3d3c1530%22%7D; sess=AT-yD7LrwoiIgaI1KwNjtf3fJ9Q01TJVC8jXcy3jJz9iGKvWm3%2FHQKzTg3Kb76BnJhDk1zHlq6CWPAfIpiDy3uJy3oPfexKkmQ%2BZZoayYMhWx6GTVtcDk0%2Bk5y6yw; session_id=LQwh%2FZZN1gRKzv5HLoRac3YQ60Inqv474TRv57R9EiGqcc8LXedYmw%3D%3D.1631155802; smzdm_id=4109026830; s=LQwh%2FZZN1gRKzv5HLoRac3YQ60Inqv474TRv57R9EiGr7IZUJCr0Vnnc6iFvOVF8kVXp6SUoOs%3D; v=10.1.15; version=10.1.15;
+  // let smzdmCookie = magicJS.read(smzdmCookieKey);
 
-  if (!!smzdmCookie === false) {
-    magicJS.logWarning("没有读取到什么值得买有效cookie，请访问zhiyou.smzdm.com进行登录");
-    magicJS.notify(scriptName, "", "❓没有获取到Web端Cookie，请先进行登录。");
+  if (!!cookieSMZDMs === false) {
+    // magicJS.logWarning("没有读取到什么值得买有效cookie，请访问zhiyou.smzdm.com进行登录");
+    // magicJS.notify(scriptName, "", "❓没有获取到Web端Cookie，请先进行登录。");
+    notify.sendNotify(scriptName,"没有读取到什么值得买有效cookie，请访问zhiyou.smzdm.com进行登录")
+    content+=("\n没有读取到什么值得买有效cookie，请访问zhiyou.smzdm.com进行登录")
   } else {
-    try {
-      // 任务完成情况
-      let clickGoBuyTimes = 0;
-      let clickLikePrductTimes = 0;
-      let clickLikeArticleTimes = 0;
-      let clickFavArticleTimes = 0;
+    for (let i = 0; i < cookieSMZDMs.length; i++) {
+      try {
+        $.index = i+1
+        content+=("\n========== [Cookie " + $.index + "] Start ========== ")
+        magicJS.log("\n========== [Cookie " + $.index + "] Start ========== ")
+        let smzdmCookie = cookieSMZDMs[i]
+        // 任务完成情况
+        let clickGoBuyTimes = 0;
+        let clickLikePrductTimes = 0;
+        let clickLikeArticleTimes = 0;
+        let clickFavArticleTimes = 0;
 
-      // 查询签到前用户数据
-      let [nickName, avatar, beforeVIPLevel, beforeHasCheckin, , beforeNotice, , , beforePoint, beforeGold, beforeSilver] = await WebGetCurrentInfo(smzdmCookie);
-      if (!nickName) {
-        magicJS.notify(scriptName, "", "❌Cookie过期或接口变化，请尝试重新登录");
-        magicJS.done();
-      } else {
-        let [, , , beforeExp, , beforePrestige] = await WebGetCurrentInfoNewVersion(smzdmCookie);
-        magicJS.logInfo(
-          `昵称：${nickName}\nWeb端签到状态：${beforeHasCheckin}\n签到前等级${beforeVIPLevel}，积分${beforePoint}，经验${beforeExp}，金币${beforeGold}，碎银子${beforeSilver}， 未读消息${beforeNotice}`
-        );
-
-        // 每日抽奖
-        let activeId = await GetLotteryActiveId(smzdmCookie);
-        if (activeId) {
-          content = await LotteryDraw(smzdmCookie, activeId);
-        }
-
-        // 获取去购买和好价Id列表
-        let [, [goBuyList = [], likProductList = []]] = await magicJS.attempt(magicJS.retry(GetProductList, 5, 1000)(), [[], []]);
-        // 获取好文列表
-        let [, articleList = []] = await magicJS.attempt(magicJS.retry(GetDataArticleIdList, 5, 1000)(), []);
-
-        // 好价点击去购买，Web端点击已无奖励，放弃
-        const clickGoBuyAsync = async () => {
-          let clickGoBuyList = goBuyList.splice(0, clickGoBuyMaxTimes);
-          if (clickGoBuyList.length > 0) {
-            for (let i = 0; i < clickGoBuyList.length; i++) {
-              await ClickGoBuyButton(smzdmCookie, clickGoBuyList[i]);
-              magicJS.logInfo(`完成第${i + 1}次“每日去购买”任务，点击链接：\n${clickGoBuyList[i]}`);
-              clickGoBuyTimes += 1;
-              await magicJS.sleep(3100);
-            }
-          }
-        };
-
-        // 好价点值
-        const clickLikeProductAsync = async () => {
-          let clickLikeProductList = likProductList.splice(0, clickLikeProductMaxTimes);
-          if (clickLikeProductList.length > 0) {
-            for (let i = 0; i < clickLikeProductList.length; i++) {
-              await ClickLikeProduct(smzdmCookie, clickLikeProductList[i]);
-              magicJS.logInfo(`完成第${i + 1}次“好价点值”任务，好价Id：${clickLikeProductList[i]}`);
-              clickLikePrductTimes += 1;
-              await magicJS.sleep(3100);
-            }
-          }
-        };
-
-        // 好文点赞
-        const clickLikeArticleAsync = async () => {
-          let likeArticleList = articleList.splice(0, clickLikeArticleMaxTimes);
-          if (likeArticleList.length > 0) {
-            for (let i = 0; i < likeArticleList.length; i++) {
-              await ClickLikeArticle(smzdmCookie, likeArticleList[i]);
-              magicJS.logInfo(`完成第${i + 1}次“好文点赞”任务，好文Id：${likeArticleList[i]}`);
-              clickLikeArticleTimes += 1;
-              await magicJS.sleep(3100);
-            }
-          }
-        };
-
-        // 好文收藏
-        const clickFavArticleAsync = async () => {
-          let favArticleList = articleList.splice(0, clickFavArticleMaxTimes);
-          if (favArticleList.length > 0) {
-            // 好文收藏
-            for (let i = 0; i < favArticleList.length; i++) {
-              await ClickFavArticle(smzdmCookie, articleList[i]);
-              magicJS.logInfo(`完成第${i + 1}次“好文收藏”任务，好文Id：${articleList[i]}`);
-              clickFavArticleTimes += 1;
-              await magicJS.sleep(3100);
-            }
-            // 取消收藏
-            for (let i = 0; i < favArticleList.length; i++) {
-              await ClickFavArticle(smzdmCookie, articleList[i]);
-              magicJS.logInfo(`取消第${i + 1}次“好文收藏”任务的好文，好文Id：${articleList[i]}`);
-              await magicJS.sleep(3100);
-            }
-          }
-        };
-
-        await Promise.all([clickGoBuyAsync(), clickLikeProductAsync()]);
-        await Promise.all([clickLikeArticleAsync(), clickFavArticleAsync()]);
-
-        // 查询签到后用户数据
-        await magicJS.sleep(3000);
-        let [, , afterVIPLevel, afterHasCheckin, afterCheckinNum, afterNotice, , , afterPoint, afterGold, afterSilver] = await WebGetCurrentInfo(smzdmCookie);
-        let [, afteruserPointList, , afterExp, , afterPrestige] = await WebGetCurrentInfoNewVersion(smzdmCookie);
-        magicJS.logInfo(
-          `昵称：${nickName}\nWeb端签到状态：${afterHasCheckin}\n签到后等级${afterVIPLevel}，积分${afterPoint}，经验${afterExp}，金币${afterGold}，碎银子${afterSilver}，未读消息${afterNotice}`
-        );
-
-        // 通知内容
-        if (afterExp && beforeExp) {
-          let addPoint = afterPoint - beforePoint;
-          let addExp = afterExp - beforeExp;
-          let addGold = afterGold - beforeGold;
-          // let addPrestige = afterPrestige - beforePrestige;
-          let addSilver = afterSilver - beforeSilver;
-          content += !!content ? "\n" : "";
-          content +=
-            "积分" +
-            afterPoint +
-            (addPoint > 0 ? "(+" + addPoint + ")" : "") +
-            " 经验" +
-            afterExp +
-            (addExp > 0 ? "(+" + addExp + ")" : "") +
-            " 金币" +
-            afterGold +
-            (addGold > 0 ? "(+" + addGold + ")" : "") +
-            "\n" +
-            "碎银子" +
-            afterSilver +
-            (addSilver > 0 ? "(+" + addSilver + ")" : "") +
-            // ' 威望' + afterPrestige + (addPrestige > 0 ? '(+' + addPrestige + ')' : '') +
-            " 未读消息" +
-            afterNotice;
-        }
-
-        content += `\n点值 ${clickLikePrductTimes}/${clickLikeProductMaxTimes} 去购买 ${clickGoBuyTimes}/${clickGoBuyMaxTimes}\n点赞 ${clickLikeArticleTimes}/${clickLikeArticleMaxTimes} 收藏 ${clickLikeArticleTimes}/${clickFavArticleTimes}`;
-
-        content += !!content ? "\n" : "";
-        if (afteruserPointList.length > 0) {
-          content += "用户近期经验变动情况(有延迟)：";
-          afteruserPointList.forEach((element) => {
-            content += `\n${element["time"]} ${element["detail"]}`;
-          });
-          content += "\n如经验值无变动，请更新Cookie。";
+        // 查询签到前用户数据
+        let [nickName, avatar, beforeVIPLevel, beforeHasCheckin, , beforeNotice, , , beforePoint, beforeGold, beforeSilver] = await WebGetCurrentInfo(smzdmCookie);
+        if (!nickName) {
+          magicJS.notify(scriptName, "", "❌Cookie过期或接口变化，请尝试重新登录");
+          magicJS.done();
         } else {
-          content += "没有获取到用户近期的经验变动情况";
-        }
+          let [, , , beforeExp, , beforePrestige] = await WebGetCurrentInfoNewVersion(smzdmCookie);
+          magicJS.logInfo(
+              `昵称：${nickName}\nWeb端签到状态：${beforeHasCheckin}\n签到前等级${beforeVIPLevel}，积分${beforePoint}，经验${beforeExp}，金币${beforeGold}，碎银子${beforeSilver}， 未读消息${beforeNotice}`
+          );
 
-        title = `${scriptName} - ${nickName} V${afterVIPLevel}`;
-        magicJS.notify(title, subTitle, content, { "media-url": avatar });
+          //web签到
+          if (!beforeHasCheckin) {
+            content+="签到！"
+            await SignIn(smzdmCookie);
+          }
+
+          // 每日抽奖
+          let activeId = await GetLotteryActiveId(smzdmCookie);
+          if (activeId){
+            content = await LotteryDraw(smzdmCookie, activeId);
+          }
+
+          // 获取去购买和好价Id列表
+          let [, [goBuyList = [], likProductList = []]] = await magicJS.attempt(magicJS.retry(GetProductList, 5, 1000)(), [[], []]);
+          // 获取好文列表
+          let [, articleList = []] = await magicJS.attempt(magicJS.retry(GetDataArticleIdList, 5, 1000)(), []);
+
+          // 好价点击去购买，Web端点击已无奖励，放弃
+          const clickGoBuyAsync = async () => {
+            let clickGoBuyList = goBuyList.splice(0, clickGoBuyMaxTimes);
+            if (clickGoBuyList.length > 0) {
+              for (let i = 0; i < clickGoBuyList.length; i++) {
+                await ClickGoBuyButton(smzdmCookie, clickGoBuyList[i]);
+                magicJS.logInfo(`完成第${i + 1}次“每日去购买”任务，点击链接：\n${clickGoBuyList[i]}`);
+                clickGoBuyTimes += 1;
+                await magicJS.sleep(3100);
+              }
+            }
+          };
+
+          // 好价点值
+          const clickLikeProductAsync = async () => {
+            let clickLikeProductList = likProductList.splice(0, clickLikeProductMaxTimes);
+            if (clickLikeProductList.length > 0) {
+              for (let i = 0; i < clickLikeProductList.length; i++) {
+                await ClickLikeProduct(smzdmCookie, clickLikeProductList[i]);
+                magicJS.logInfo(`完成第${i + 1}次“好价点值”任务，好价Id：${clickLikeProductList[i]}`);
+                clickLikePrductTimes += 1;
+                await magicJS.sleep(3100);
+              }
+            }
+          };
+
+          // 好文点赞
+          const clickLikeArticleAsync = async () => {
+            let likeArticleList = articleList.splice(0, clickLikeArticleMaxTimes);
+            if (likeArticleList.length > 0) {
+              for (let i = 0; i < likeArticleList.length; i++) {
+                await ClickLikeArticle(smzdmCookie, likeArticleList[i]);
+                magicJS.logInfo(`完成第${i + 1}次“好文点赞”任务，好文Id：${likeArticleList[i]}`);
+                clickLikeArticleTimes += 1;
+                await magicJS.sleep(3100);
+              }
+            }
+          };
+
+          // 好文收藏
+          const clickFavArticleAsync = async () => {
+            let favArticleList = articleList.splice(0, clickFavArticleMaxTimes);
+            if (favArticleList.length > 0) {
+              // 好文收藏
+              for (let i = 0; i < favArticleList.length; i++) {
+                await ClickFavArticle(smzdmCookie, articleList[i]);
+                magicJS.logInfo(`完成第${i + 1}次“好文收藏”任务，好文Id：${articleList[i]}`);
+                clickFavArticleTimes += 1;
+                await magicJS.sleep(3100);
+              }
+              // 取消收藏
+              for (let i = 0; i < favArticleList.length; i++) {
+                await ClickFavArticle(smzdmCookie, articleList[i]);
+                magicJS.logInfo(`取消第${i + 1}次“好文收藏”任务的好文，好文Id：${articleList[i]}`);
+                await magicJS.sleep(3100);
+              }
+            }
+          };
+
+          await Promise.all([clickGoBuyAsync(), clickLikeProductAsync()]);
+          await Promise.all([clickLikeArticleAsync(), clickFavArticleAsync()]);
+
+          // 查询签到后用户数据
+          await magicJS.sleep(3000);
+          let [, , afterVIPLevel, afterHasCheckin, afterCheckinNum, afterNotice, , , afterPoint, afterGold, afterSilver] = await WebGetCurrentInfo(smzdmCookie);
+          let [, afteruserPointList, , afterExp, , afterPrestige] = await WebGetCurrentInfoNewVersion(smzdmCookie);
+          magicJS.logInfo(
+              `昵称：${nickName}\nWeb端签到状态：${afterHasCheckin}\n签到后等级${afterVIPLevel}，积分${afterPoint}，经验${afterExp}，金币${afterGold}，碎银子${afterSilver}，未读消息${afterNotice}`
+          );
+
+          // 通知内容
+          if (afterExp && beforeExp) {
+            let addPoint = afterPoint - beforePoint;
+            let addExp = afterExp - beforeExp;
+            let addGold = afterGold - beforeGold;
+            // let addPrestige = afterPrestige - beforePrestige;
+            let addSilver = afterSilver - beforeSilver;
+            content += !!content ? "\n" : "";
+            content +=
+                "积分" +
+                afterPoint +
+                (addPoint > 0 ? "(+" + addPoint + ")" : "") +
+                " 经验" +
+                afterExp +
+                (addExp > 0 ? "(+" + addExp + ")" : "") +
+                " 金币" +
+                afterGold +
+                (addGold > 0 ? "(+" + addGold + ")" : "") +
+                "\n" +
+                "碎银子" +
+                afterSilver +
+                (addSilver > 0 ? "(+" + addSilver + ")" : "") +
+                // ' 威望' + afterPrestige + (addPrestige > 0 ? '(+' + addPrestige + ')' : '') +
+                " 未读消息" +
+                afterNotice;
+          }
+
+          content += `\n点值 ${clickLikePrductTimes}/${clickLikeProductMaxTimes} 去购买 ${clickGoBuyTimes}/${clickGoBuyMaxTimes}\n点赞 ${clickLikeArticleTimes}/${clickLikeArticleMaxTimes} 收藏 ${clickLikeArticleTimes}/${clickFavArticleTimes}`;
+
+          content += !!content ? "\n" : "";
+          if (afteruserPointList.length > 0) {
+            content += "用户近期经验变动情况(有延迟)：";
+            afteruserPointList.forEach((element) => {
+              content += `\n${element["time"]} ${element["detail"]}`;
+            });
+            content += "\n如经验值无变动，请更新Cookie。";
+          } else {
+            content += "没有获取到用户近期的经验变动情况";
+          }
+
+          title = `${scriptName} - ${nickName} V${afterVIPLevel}`;
+          // magicJS.notify(title, subTitle, content, { "media-url": avatar });
+        }
+      } catch (err) {
+        // magicJS.logError(`执行任务出现异常：${err}`);
+        result.push(`执行任务出现异常：${err}`)
+        // magicJS.notify(scriptName, "", "❌执行任务出现，请查阅日志");
+        notify.sendNotify( scriptName,`❌执行任务出现，请查阅日志`);
       }
-    } catch (err) {
-      magicJS.logError(`执行任务出现异常：${err}`);
-      magicJS.notify(scriptName, "", "❌执行任务出现，请查阅日志");
+      content+=("\n========== [Cookie " + $.index + "]  End  ========== \n\n\n")
+      magicJS.log("\n========== [Cookie " + $.index + "]  End  ========== \n\n\n")
+      result.push(content)
     }
   }
   magicJS.done();
+  notify.sendNotify( scriptName,result.join("\n"));
 })();
 
 // prettier-ignore
-function MagicJS(scriptName="MagicJS",logLevel="INFO"){return new class{constructor(){if(this.version="2.2.3.5",this.scriptName=scriptName,this.logLevels={DEBUG:5,INFO:4,NOTIFY:3,WARNING:2,ERROR:1,CRITICAL:0,NONE:-1},this.isLoon="undefined"!=typeof $loon,this.isQuanX="undefined"!=typeof $task,this.isJSBox="undefined"!=typeof $drive,this.isNode="undefined"!=typeof module&&!this.isJSBox,this.isSurge="undefined"!=typeof $httpClient&&!this.isLoon,this.node={request:void 0,fs:void 0,data:{}},this.iOSUserAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 13_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.5 Mobile/15E148 Safari/604.1",this.pcUserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36 Edg/84.0.522.59",this.logLevel=logLevel,this._barkUrl="",this._barkKey="",this.isNode){this.node.fs=require("fs"),this.node.request=require("request");try{this.node.fs.accessSync("./magic.json",this.node.fs.constants.R_OK|this.node.fs.constants.W_OK)}catch(err){this.node.fs.writeFileSync("./magic.json","{}",{encoding:"utf8"})}this.node.data=require("./magic.json")}else this.isJSBox&&($file.exists("drive://MagicJS")||$file.mkdir("drive://MagicJS"),$file.exists("drive://MagicJS/magic.json")||$file.write({data:$data({string:"{}"}),path:"drive://MagicJS/magic.json"}))}set barkUrl(url){try{let _url=url.replace(/\/+$/g,"");this._barkUrl=`${/^https?:\/\/([^/]*)/.exec(_url)[0]}/push`,this._barkKey=/\/([^\/]+)\/?$/.exec(_url)[1]}catch(err){this.logDebug("读取Bark推送链接失败。")}}set logLevel(level){this._logLevel="string"==typeof level?level.toUpperCase():"DEBUG"}get logLevel(){return this._logLevel}get isRequest(){return"undefined"!=typeof $request&&"undefined"==typeof $response}get isResponse(){return"undefined"!=typeof $response}get request(){return"undefined"!=typeof $request?$request:void 0}get response(){return"undefined"!=typeof $response?($response.hasOwnProperty("status")&&($response.statusCode=$response.status),$response.hasOwnProperty("statusCode")&&($response.status=$response.statusCode),$response):void 0}get platform(){return this.isSurge?"Surge":this.isQuanX?"Quantumult X":this.isLoon?"Loon":this.isJSBox?"JSBox":this.isNode?"Node.js":"Unknown"}read(key,session=""){let val="";this.isSurge||this.isLoon?val=$persistentStore.read(key):this.isQuanX?val=$prefs.valueForKey(key):this.isNode?val=this.node.data:this.isJSBox&&(val=$file.read("drive://MagicJS/magic.json").string);try{this.isNode&&(val=val[key]),this.isJSBox&&(val=JSON.parse(val)[key]),session&&("string"==typeof val&&(val=JSON.parse(val)),val=val&&"object"==typeof val?val[session]:null)}catch(err){this.logError(err),val=session?{}:null,this.del(key)}void 0===val&&(val=null);try{val&&"string"==typeof val&&(val=JSON.parse(val))}catch(err){}return this.logDebug(`READ DATA [${key}]${session?`[${session}]`:""}(${typeof val})\n${JSON.stringify(val)}`),val}write(key,val,session=""){let data=session?{}:"";if(session&&(this.isSurge||this.isLoon)?data=$persistentStore.read(key):session&&this.isQuanX?data=$prefs.valueForKey(key):this.isNode?data=this.node.data:this.isJSBox&&(data=JSON.parse($file.read("drive://MagicJS/magic.json").string)),session){try{"string"==typeof data&&(data=JSON.parse(data)),data="object"==typeof data&&data?data:{}}catch(err){this.logError(err),this.del(key),data={}}this.isJSBox||this.isNode?(data[key]&&"object"==typeof data[key]||(data[key]={}),data[key].hasOwnProperty(session)||(data[key][session]=null),void 0===val?delete data[key][session]:data[key][session]=val):void 0===val?delete data[session]:data[session]=val}else this.isNode||this.isJSBox?void 0===val?delete data[key]:data[key]=val:data=void 0===val?null:val;"object"==typeof data&&(data=JSON.stringify(data)),this.isSurge||this.isLoon?$persistentStore.write(data,key):this.isQuanX?$prefs.setValueForKey(data,key):this.isNode?this.node.fs.writeFileSync("./magic.json",data):this.isJSBox&&$file.write({data:$data({string:data}),path:"drive://MagicJS/magic.json"}),this.logDebug(`WRITE DATA [${key}]${session?`[${session}]`:""}(${typeof val})\n${JSON.stringify(val)}`)}del(key,session=""){this.logDebug(`DELETE KEY [${key}]${session?`[${session}]`:""}`),this.write(key,null,session)}notify(title=this.scriptName,subTitle="",body="",opts=""){let convertOptions;if(opts=(_opts=>{let newOpts={};if("string"==typeof _opts)this.isLoon?newOpts={openUrl:_opts}:this.isQuanX?newOpts={"open-url":_opts}:this.isSurge&&(newOpts={url:_opts});else if("object"==typeof _opts)if(this.isLoon)newOpts.openUrl=_opts["open-url"]?_opts["open-url"]:"",newOpts.mediaUrl=_opts["media-url"]?_opts["media-url"]:"";else if(this.isQuanX)newOpts=_opts["open-url"]||_opts["media-url"]?_opts:{};else if(this.isSurge){let openUrl=_opts["open-url"]||_opts.openUrl;newOpts=openUrl?{url:openUrl}:{}}return newOpts})(opts),1==arguments.length&&(title=this.scriptName,subTitle="",body=arguments[0]),this.logNotify(`title:${title}\nsubTitle:${subTitle}\nbody:${body}\noptions:${"object"==typeof opts?JSON.stringify(opts):opts}`),this.isSurge)$notification.post(title,subTitle,body,opts);else if(this.isLoon)opts?$notification.post(title,subTitle,body,opts):$notification.post(title,subTitle,body);else if(this.isQuanX)$notify(title,subTitle,body,opts);else if(this.isJSBox){let push={title:title,body:subTitle?`${subTitle}\n${body}`:body};$push.schedule(push)}this._barkUrl&&this._barkKey&&this.notifyBark(title,subTitle,body)}notifyDebug(title=this.scriptName,subTitle="",body="",opts=""){"DEBUG"===this.logLevel&&(1==arguments.length&&(title=this.scriptName,subTitle="",body=arguments[0]),this.notify(title,subTitle,body,opts))}notifyBark(title=this.scriptName,subTitle="",body="",opts=""){let options={url:this._barkUrl,headers:{"Content-Type":"application/json; charset=utf-8"},body:{title:title,body:subTitle?`${subTitle}\n${body}`:body,device_key:this._barkKey}};this.post(options,err=>{})}log(msg,level="INFO"){this.logLevels[this._logLevel]<this.logLevels[level.toUpperCase()]||console.log(`[${level}] [${this.scriptName}]\n${msg}\n`)}logDebug(msg){this.log(msg,"DEBUG")}logInfo(msg){this.log(msg,"INFO")}logNotify(msg){this.log(msg,"NOTIFY")}logWarning(msg){this.log(msg,"WARNING")}logError(msg){this.log(msg,"ERROR")}logRetry(msg){this.log(msg,"RETRY")}adapterHttpOptions(options,method){let _options="object"==typeof options?Object.assign({},options):{url:options,headers:{}};_options.hasOwnProperty("header")&&!_options.hasOwnProperty("headers")&&(_options.headers=_options.header,delete _options.header),_options.headers&&"object"==typeof _options.headers&&_options.headers["User-Agent"]||(_options.headers&&"object"==typeof _options.headers||(_options.headers={}),this.isNode?_options.headers["User-Agent"]=this.pcUserAgent:_options.headers["User-Agent"]=this.iOSUserAgent);let skipScripting=!1;if(("object"==typeof _options.opts&&(!0===_options.opts.hints||!0===_options.opts["Skip-Scripting"])||"object"==typeof _options.headers&&!0===_options.headers["X-Surge-Skip-Scripting"])&&(skipScripting=!0),skipScripting||(this.isSurge?_options.headers["X-Surge-Skip-Scripting"]=!1:this.isLoon?_options.headers["X-Requested-With"]="XMLHttpRequest":this.isQuanX&&("object"!=typeof _options.opts&&(_options.opts={}),_options.opts.hints=!1)),this.isSurge&&!skipScripting||delete _options.headers["X-Surge-Skip-Scripting"],!this.isQuanX&&_options.hasOwnProperty("opts")&&delete _options.opts,this.isQuanX&&_options.hasOwnProperty("opts")&&delete _options.opts["Skip-Scripting"],"GET"===method&&!this.isNode&&_options.body){let qs=Object.keys(_options.body).map(key=>void 0===_options.body?"":`${encodeURIComponent(key)}=${encodeURIComponent(_options.body[key])}`).join("&");_options.url.indexOf("?")<0&&(_options.url+="?"),_options.url.lastIndexOf("&")+1!=_options.url.length&&_options.url.lastIndexOf("?")+1!=_options.url.length&&(_options.url+="&"),_options.url+=qs,delete _options.body}return this.isQuanX?(_options.hasOwnProperty("body")&&"string"!=typeof _options.body&&(_options.body=JSON.stringify(_options.body)),_options.method=method):this.isNode?(delete _options.headers["Accept-Encoding"],"object"==typeof _options.body&&("GET"===method?(_options.qs=_options.body,delete _options.body):"POST"===method&&(_options.json=!0,_options.body=_options.body))):this.isJSBox&&(_options.header=_options.headers,delete _options.headers),_options}adapterHttpResponse(resp){let _resp={body:resp.body,headers:resp.headers,json:()=>JSON.parse(_resp.body)};return resp.hasOwnProperty("statusCode")&&resp.statusCode&&(_resp.status=resp.statusCode),_resp}get(options,callback){let _options=this.adapterHttpOptions(options,"GET");this.logDebug(`HTTP GET: ${JSON.stringify(_options)}`),this.isSurge||this.isLoon?$httpClient.get(_options,callback):this.isQuanX?$task.fetch(_options).then(resp=>{resp.status=resp.statusCode,callback(null,resp,resp.body)},reason=>callback(reason.error,null,null)):this.isNode?this.node.request.get(_options,(err,resp,data)=>{resp=this.adapterHttpResponse(resp),callback(err,resp,data)}):this.isJSBox&&(_options.handler=resp=>{let err=resp.error?JSON.stringify(resp.error):void 0,data="object"==typeof resp.data?JSON.stringify(resp.data):resp.data;callback(err,resp.response,data)},$http.get(_options))}getPromise(options){return new Promise((resolve,reject)=>{magicJS.get(options,(err,resp)=>{err?reject(err):resolve(resp)})})}post(options,callback){let _options=this.adapterHttpOptions(options,"POST");if(this.logDebug(`HTTP POST: ${JSON.stringify(_options)}`),this.isSurge||this.isLoon)$httpClient.post(_options,callback);else if(this.isQuanX)$task.fetch(_options).then(resp=>{resp.status=resp.statusCode,callback(null,resp,resp.body)},reason=>{callback(reason.error,null,null)});else if(this.isNode){let resp=this.node.request.post(_options,callback);resp.status=resp.statusCode,delete resp.statusCode}else this.isJSBox&&(_options.handler=resp=>{let err=resp.error?JSON.stringify(resp.error):void 0,data="object"==typeof resp.data?JSON.stringify(resp.data):resp.data;callback(err,resp.response,data)},$http.post(_options,{}))}get http(){return{get:this.getPromise,post:this.post}}done(value={}){"undefined"!=typeof $done&&$done(value)}isToday(day){if(null==day)return!1;{let today=new Date;return"string"==typeof day&&(day=new Date(day)),today.getFullYear()==day.getFullYear()&&today.getMonth()==day.getMonth()&&today.getDay()==day.getDay()}}isNumber(val){return"NaN"!==parseFloat(val).toString()}attempt(promise,defaultValue=null){return promise.then(args=>[null,args]).catch(ex=>(this.logError(ex),[ex,defaultValue]))}retry(fn,retries=5,interval=0,callback=null){return(...args)=>new Promise((resolve,reject)=>{function _retry(...args){Promise.resolve().then(()=>fn.apply(this,args)).then(result=>{"function"==typeof callback?Promise.resolve().then(()=>callback(result)).then(()=>{resolve(result)}).catch(ex=>{retries>=1?interval>0?setTimeout(()=>_retry.apply(this,args),interval):_retry.apply(this,args):reject(ex),retries--}):resolve(result)}).catch(ex=>{this.logRetry(ex),retries>=1&&interval>0?setTimeout(()=>_retry.apply(this,args),interval):retries>=1?_retry.apply(this,args):reject(ex),retries--})}_retry.apply(this,args)})}formatTime(time,fmt="yyyy-MM-dd hh:mm:ss"){var o={"M+":time.getMonth()+1,"d+":time.getDate(),"h+":time.getHours(),"m+":time.getMinutes(),"s+":time.getSeconds(),"q+":Math.floor((time.getMonth()+3)/3),S:time.getMilliseconds()};/(y+)/.test(fmt)&&(fmt=fmt.replace(RegExp.$1,(time.getFullYear()+"").substr(4-RegExp.$1.length)));for(let k in o)new RegExp("("+k+")").test(fmt)&&(fmt=fmt.replace(RegExp.$1,1==RegExp.$1.length?o[k]:("00"+o[k]).substr((""+o[k]).length)));return fmt}now(){return this.formatTime(new Date,"yyyy-MM-dd hh:mm:ss")}today(){return this.formatTime(new Date,"yyyy-MM-dd")}sleep(time){return new Promise(resolve=>setTimeout(resolve,time))}}(scriptName)}
+function MagicJS(scriptName="MagicJS",logLevel="INFO"){return new class{constructor(){if(this.version="2.2.3.3",this.scriptName=scriptName,this.logLevels={DEBUG:5,INFO:4,NOTIFY:3,WARNING:2,ERROR:1,CRITICAL:0,NONE:-1},this.isLoon="undefined"!=typeof $loon,this.isQuanX="undefined"!=typeof $task,this.isJSBox="undefined"!=typeof $drive,this.isNode="undefined"!=typeof module&&!this.isJSBox,this.isSurge="undefined"!=typeof $httpClient&&!this.isLoon,this.node={request:void 0,fs:void 0,data:{}},this.iOSUserAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 13_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.5 Mobile/15E148 Safari/604.1",this.pcUserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36 Edg/84.0.522.59",this.logLevel=logLevel,this._barkUrl="",this.isNode){this.node.fs=require("fs"),this.node.request=require("request");try{this.node.fs.accessSync("./magic.json",this.node.fs.constants.R_OK|this.node.fs.constants.W_OK)}catch(err){this.node.fs.writeFileSync("./magic.json","{}",{encoding:"utf8"})}this.node.data=require("./magic.json")}else this.isJSBox&&($file.exists("drive://MagicJS")||$file.mkdir("drive://MagicJS"),$file.exists("drive://MagicJS/magic.json")||$file.write({data:$data({string:"{}"}),path:"drive://MagicJS/magic.json"}))}set barkUrl(url){this._barkUrl=url.replace(/\/+$/g,"")}set logLevel(level){this._logLevel="string"==typeof level?level.toUpperCase():"DEBUG"}get logLevel(){return this._logLevel}get isRequest(){return"undefined"!=typeof $request&&"undefined"==typeof $response}get isResponse(){return"undefined"!=typeof $response}get request(){return"undefined"!=typeof $request?$request:void 0}get response(){return"undefined"!=typeof $response?($response.hasOwnProperty("status")&&($response.statusCode=$response.status),$response.hasOwnProperty("statusCode")&&($response.status=$response.statusCode),$response):void 0}get platform(){return this.isSurge?"Surge":this.isQuanX?"Quantumult X":this.isLoon?"Loon":this.isJSBox?"JSBox":this.isNode?"Node.js":"Unknown"}read(key,session=""){let val="";this.isSurge||this.isLoon?val=$persistentStore.read(key):this.isQuanX?val=$prefs.valueForKey(key):this.isNode?val=this.node.data:this.isJSBox&&(val=$file.read("drive://MagicJS/magic.json").string);try{this.isNode&&(val=val[key]),this.isJSBox&&(val=JSON.parse(val)[key]),session&&("string"==typeof val&&(val=JSON.parse(val)),val=val&&"object"==typeof val?val[session]:null)}catch(err){this.logError(err),val=session?{}:null,this.del(key)}void 0===val&&(val=null);try{val&&"string"==typeof val&&(val=JSON.parse(val))}catch(err){}return this.logDebug(`READ DATA [${key}]${session?`[${session}]`:""}(${typeof val})\n${JSON.stringify(val)}`),val}write(key,val,session=""){let data=session?{}:"";if(session&&(this.isSurge||this.isLoon)?data=$persistentStore.read(key):session&&this.isQuanX?data=$prefs.valueForKey(key):this.isNode?data=this.node.data:this.isJSBox&&(data=JSON.parse($file.read("drive://MagicJS/magic.json").string)),session){try{"string"==typeof data&&(data=JSON.parse(data)),data="object"==typeof data&&data?data:{}}catch(err){this.logError(err),this.del(key),data={}}this.isJSBox||this.isNode?(data[key]&&"object"==typeof data[key]||(data[key]={}),data[key].hasOwnProperty(session)||(data[key][session]=null),void 0===val?delete data[key][session]:data[key][session]=val):void 0===val?delete data[session]:data[session]=val}else this.isNode||this.isJSBox?void 0===val?delete data[key]:data[key]=val:data=void 0===val?null:val;"object"==typeof data&&(data=JSON.stringify(data)),this.isSurge||this.isLoon?$persistentStore.write(data,key):this.isQuanX?$prefs.setValueForKey(data,key):this.isNode?this.node.fs.writeFileSync("./magic.json",data):this.isJSBox&&$file.write({data:$data({string:data}),path:"drive://MagicJS/magic.json"}),this.logDebug(`WRITE DATA [${key}]${session?`[${session}]`:""}(${typeof val})\n${JSON.stringify(val)}`)}del(key,session=""){this.logDebug(`DELETE KEY [${key}]${session?`[${session}]`:""}`),this.write(key,null,session)}notify(title=this.scriptName,subTitle="",body="",opts=""){let convertOptions;if(opts=(_opts=>{let newOpts={};if("string"==typeof _opts)this.isLoon?newOpts={openUrl:_opts}:this.isQuanX?newOpts={"open-url":_opts}:this.isSurge&&(newOpts={url:_opts});else if("object"==typeof _opts)if(this.isLoon)newOpts.openUrl=_opts["open-url"]?_opts["open-url"]:"",newOpts.mediaUrl=_opts["media-url"]?_opts["media-url"]:"";else if(this.isQuanX)newOpts=_opts["open-url"]||_opts["media-url"]?_opts:{};else if(this.isSurge){let openUrl=_opts["open-url"]||_opts.openUrl;newOpts=openUrl?{url:openUrl}:{}}return newOpts})(opts),1==arguments.length&&(title=this.scriptName,subTitle="",body=arguments[0]),this.logNotify(`title:${title}\nsubTitle:${subTitle}\nbody:${body}\noptions:${"object"==typeof opts?JSON.stringify(opts):opts}`),this.isSurge)$notification.post(title,subTitle,body,opts);else if(this.isLoon)opts?$notification.post(title,subTitle,body,opts):$notification.post(title,subTitle,body);else if(this.isQuanX)$notify(title,subTitle,body,opts);else if(this.isNode){if(this._barkUrl){let content=encodeURI(`${title}/${subTitle}\n${body}`);this.get(`${this._barkUrl}/${content}`,()=>{})}}else if(this.isJSBox){let push={title:title,body:subTitle?`${subTitle}\n${body}`:body};$push.schedule(push)}}notifyDebug(title=this.scriptName,subTitle="",body="",opts=""){"DEBUG"===this.logLevel&&(1==arguments.length&&(title=this.scriptName,subTitle="",body=arguments[0]),this.notify(title,subTitle,body,opts))}log(msg,level="INFO"){this.logLevels[this._logLevel]<this.logLevels[level.toUpperCase()]||console.log(`[${level}] [${this.scriptName}]\n${msg}\n`)}logDebug(msg){this.log(msg,"DEBUG")}logInfo(msg){this.log(msg,"INFO")}logNotify(msg){this.log(msg,"NOTIFY")}logWarning(msg){this.log(msg,"WARNING")}logError(msg){this.log(msg,"ERROR")}logRetry(msg){this.log(msg,"RETRY")}adapterHttpOptions(options,method){let _options="object"==typeof options?Object.assign({},options):{url:options,headers:{}};_options.hasOwnProperty("header")&&!_options.hasOwnProperty("headers")&&(_options.headers=_options.header,delete _options.header);const headersMap={accept:"Accept","accept-ch":"Accept-CH","accept-charset":"Accept-Charset","accept-features":"Accept-Features","accept-encoding":"Accept-Encoding","accept-language":"Accept-Language","accept-ranges":"Accept-Ranges","access-control-allow-credentials":"Access-Control-Allow-Credentials","access-control-allow-origin":"Access-Control-Allow-Origin","access-control-allow-methods":"Access-Control-Allow-Methods","access-control-allow-headers":"Access-Control-Allow-Headers","access-control-max-age":"Access-Control-Max-Age","access-control-expose-headers":"Access-Control-Expose-Headers","access-control-request-method":"Access-Control-Request-Method","access-control-request-headers":"Access-Control-Request-Headers",age:"Age",allow:"Allow",alternates:"Alternates",authorization:"Authorization","cache-control":"Cache-Control",connection:"Connection","content-encoding":"Content-Encoding","content-language":"Content-Language","content-length":"Content-Length","content-location":"Content-Location","content-md5":"Content-MD5","content-range":"Content-Range","content-security-policy":"Content-Security-Policy","content-type":"Content-Type",cookie:"Cookie",dnt:"DNT",date:"Date",etag:"ETag",expect:"Expect",expires:"Expires",from:"From",host:"Host","if-match":"If-Match","if-modified-since":"If-Modified-Since","if-none-match":"If-None-Match","if-range":"If-Range","if-unmodified-since":"If-Unmodified-Since","last-event-id":"Last-Event-ID","last-modified":"Last-Modified",link:"Link",location:"Location","max-forwards":"Max-Forwards",negotiate:"Negotiate",origin:"Origin",pragma:"Pragma","proxy-authenticate":"Proxy-Authenticate","proxy-authorization":"Proxy-Authorization",range:"Range",referer:"Referer","retry-after":"Retry-After","sec-websocket-extensions":"Sec-Websocket-Extensions","sec-websocket-key":"Sec-Websocket-Key","sec-websocket-origin":"Sec-Websocket-Origin","sec-websocket-protocol":"Sec-Websocket-Protocol","sec-websocket-version":"Sec-Websocket-Version",server:"Server","set-cookie":"Set-Cookie","set-cookie2":"Set-Cookie2","strict-transport-security":"Strict-Transport-Security",tcn:"TCN",te:"TE",trailer:"Trailer","transfer-encoding":"Transfer-Encoding",upgrade:"Upgrade","user-agent":"User-Agent","variant-vary":"Variant-Vary",vary:"Vary",via:"Via",warning:"Warning","www-authenticate":"WWW-Authenticate","x-content-duration":"X-Content-Duration","x-content-security-policy":"X-Content-Security-Policy","x-dnsprefetch-control":"X-DNSPrefetch-Control","x-frame-options":"X-Frame-Options","x-requested-with":"X-Requested-With","x-surge-skip-scripting":"X-Surge-Skip-Scripting"};if("object"==typeof _options.headers)for(let key in _options.headers)headersMap[key]&&(_options.headers[headersMap[key]]=_options.headers[key],delete _options.headers[key]);_options.headers&&"object"==typeof _options.headers&&_options.headers["User-Agent"]||(_options.headers&&"object"==typeof _options.headers||(_options.headers={}),this.isNode?_options.headers["User-Agent"]=this.pcUserAgent:_options.headers["User-Agent"]=this.iOSUserAgent);let skipScripting=!1;if(("object"==typeof _options.opts&&(!0===_options.opts.hints||!0===_options.opts["Skip-Scripting"])||"object"==typeof _options.headers&&!0===_options.headers["X-Surge-Skip-Scripting"])&&(skipScripting=!0),skipScripting||(this.isSurge?_options.headers["X-Surge-Skip-Scripting"]=!1:this.isLoon?_options.headers["X-Requested-With"]="XMLHttpRequest":this.isQuanX&&("object"!=typeof _options.opts&&(_options.opts={}),_options.opts.hints=!1)),this.isSurge&&!skipScripting||delete _options.headers["X-Surge-Skip-Scripting"],!this.isQuanX&&_options.hasOwnProperty("opts")&&delete _options.opts,this.isQuanX&&_options.hasOwnProperty("opts")&&delete _options.opts["Skip-Scripting"],"GET"===method&&!this.isNode&&_options.body){let qs=Object.keys(_options.body).map(key=>void 0===_options.body?"":`${encodeURIComponent(key)}=${encodeURIComponent(_options.body[key])}`).join("&");_options.url.indexOf("?")<0&&(_options.url+="?"),_options.url.lastIndexOf("&")+1!=_options.url.length&&_options.url.lastIndexOf("?")+1!=_options.url.length&&(_options.url+="&"),_options.url+=qs,delete _options.body}return this.isQuanX?(_options.hasOwnProperty("body")&&"string"!=typeof _options.body&&(_options.body=JSON.stringify(_options.body)),_options.method=method):this.isNode?(delete _options.headers["Accept-Encoding"],"object"==typeof _options.body&&("GET"===method?(_options.qs=_options.body,delete _options.body):"POST"===method&&(_options.json=!0,_options.body=_options.body))):this.isJSBox&&(_options.header=_options.headers,delete _options.headers),_options}adapterHttpResponse(resp){let _resp={body:resp.body,headers:resp.headers,json:()=>JSON.parse(_resp.body)};return resp.hasOwnProperty("statusCode")&&resp.statusCode&&(_resp.status=resp.statusCode),_resp}get(options,callback){let _options=this.adapterHttpOptions(options,"GET");this.logDebug(`HTTP GET: ${JSON.stringify(_options)}`),this.isSurge||this.isLoon?$httpClient.get(_options,callback):this.isQuanX?$task.fetch(_options).then(resp=>{resp.status=resp.statusCode,callback(null,resp,resp.body)},reason=>callback(reason.error,null,null)):this.isNode?this.node.request.get(_options,(err,resp,data)=>{resp=this.adapterHttpResponse(resp),callback(err,resp,data)}):this.isJSBox&&(_options.handler=resp=>{let err=resp.error?JSON.stringify(resp.error):void 0,data="object"==typeof resp.data?JSON.stringify(resp.data):resp.data;callback(err,resp.response,data)},$http.get(_options))}getPromise(options){return new Promise((resolve,reject)=>{magicJS.get(options,(err,resp)=>{err?reject(err):resolve(resp)})})}post(options,callback){let _options=this.adapterHttpOptions(options,"POST");if(this.logDebug(`HTTP POST: ${JSON.stringify(_options)}`),this.isSurge||this.isLoon)$httpClient.post(_options,callback);else if(this.isQuanX)$task.fetch(_options).then(resp=>{resp.status=resp.statusCode,callback(null,resp,resp.body)},reason=>{callback(reason.error,null,null)});else if(this.isNode){let resp=this.node.request.post(_options,callback);resp.status=resp.statusCode,delete resp.statusCode}else this.isJSBox&&(_options.handler=resp=>{let err=resp.error?JSON.stringify(resp.error):void 0,data="object"==typeof resp.data?JSON.stringify(resp.data):resp.data;callback(err,resp.response,data)},$http.post(_options))}get http(){return{get:this.getPromise,post:this.post}}done(value={}){"undefined"!=typeof $done&&$done(value)}isToday(day){if(null==day)return!1;{let today=new Date;return"string"==typeof day&&(day=new Date(day)),today.getFullYear()==day.getFullYear()&&today.getMonth()==day.getMonth()&&today.getDay()==day.getDay()}}isNumber(val){return"NaN"!==parseFloat(val).toString()}attempt(promise,defaultValue=null){return promise.then(args=>[null,args]).catch(ex=>(this.logError(ex),[ex,defaultValue]))}retry(fn,retries=5,interval=0,callback=null){return(...args)=>new Promise((resolve,reject)=>{function _retry(...args){Promise.resolve().then(()=>fn.apply(this,args)).then(result=>{"function"==typeof callback?Promise.resolve().then(()=>callback(result)).then(()=>{resolve(result)}).catch(ex=>{retries>=1?interval>0?setTimeout(()=>_retry.apply(this,args),interval):_retry.apply(this,args):reject(ex),retries--}):resolve(result)}).catch(ex=>{this.logRetry(ex),retries>=1&&interval>0?setTimeout(()=>_retry.apply(this,args),interval):retries>=1?_retry.apply(this,args):reject(ex),retries--})}_retry.apply(this,args)})}formatTime(time,fmt="yyyy-MM-dd hh:mm:ss"){var o={"M+":time.getMonth()+1,"d+":time.getDate(),"h+":time.getHours(),"m+":time.getMinutes(),"s+":time.getSeconds(),"q+":Math.floor((time.getMonth()+3)/3),S:time.getMilliseconds()};/(y+)/.test(fmt)&&(fmt=fmt.replace(RegExp.$1,(time.getFullYear()+"").substr(4-RegExp.$1.length)));for(let k in o)new RegExp("("+k+")").test(fmt)&&(fmt=fmt.replace(RegExp.$1,1==RegExp.$1.length?o[k]:("00"+o[k]).substr((""+o[k]).length)));return fmt}now(){return this.formatTime(new Date,"yyyy-MM-dd hh:mm:ss")}today(){return this.formatTime(new Date,"yyyy-MM-dd")}sleep(time){return new Promise(resolve=>setTimeout(resolve,time))}}(scriptName)}//Tsukasa
+// prettier-ignore
+function Env(t,e){"undefined"!=typeof process&&JSON.stringify(process.env).indexOf("GITHUB")>-1&&process.exit(0);class s{constructor(t){this.env=t}send(t,e="GET"){t="string"==typeof t?{url:t}:t;let s=this.get;return"POST"===e&&(s=this.post),new Promise((e,i)=>{s.call(this,t,(t,s,r)=>{t?i(t):e(s)})})}get(t){return this.send.call(this.env,t)}post(t){return this.send.call(this.env,t,"POST")}}return new class{constructor(t,e){this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.startTime=(new Date).getTime(),Object.assign(this,e),this.log("",`🔔${this.name}, 开始!`)}isNode(){return"undefined"!=typeof module&&!!module.exports}isQuanX(){return"undefined"!=typeof $task}isSurge(){return"undefined"!=typeof $httpClient&&"undefined"==typeof $loon}isLoon(){return"undefined"!=typeof $loon}toObj(t,e=null){try{return JSON.parse(t)}catch{return e}}toStr(t,e=null){try{return JSON.stringify(t)}catch{return e}}getjson(t,e){let s=e;const i=this.getdata(t);if(i)try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise(e=>{this.get({url:t},(t,s,i)=>e(i))})}runScript(t,e){return new Promise(s=>{let i=this.getdata("@chavy_boxjs_userCfgs.httpapi");i=i?i.replace(/\n/g,"").trim():i;let r=this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");r=r?1*r:20,r=e&&e.timeout?e.timeout:r;const[o,h]=i.split("@"),n={url:`http://${h}/v1/scripting/evaluate`,body:{script_text:t,mock_type:"cron",timeout:r},headers:{"X-Key":o,Accept:"*/*"}};this.post(n,(t,e,i)=>s(i))}).catch(t=>this.logErr(t))}loaddata(){if(!this.isNode())return{};{this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e);if(!s&&!i)return{};{const i=s?t:e;try{return JSON.parse(this.fs.readFileSync(i))}catch(t){return{}}}}}writedata(){if(this.isNode()){this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e),r=JSON.stringify(this.data);s?this.fs.writeFileSync(t,r):i?this.fs.writeFileSync(e,r):this.fs.writeFileSync(t,r)}}lodash_get(t,e,s){const i=e.replace(/\[(\d+)\]/g,".$1").split(".");let r=t;for(const t of i)if(r=Object(r)[t],void 0===r)return s;return r}lodash_set(t,e,s){return Object(t)!==t?t:(Array.isArray(e)||(e=e.toString().match(/[^.[\]]+/g)||[]),e.slice(0,-1).reduce((t,s,i)=>Object(t[s])===t[s]?t[s]:t[s]=Math.abs(e[i+1])>>0==+e[i+1]?[]:{},t)[e[e.length-1]]=s,t)}getdata(t){let e=this.getval(t);if(/^@/.test(t)){const[,s,i]=/^@(.*?)\.(.*?)$/.exec(t),r=s?this.getval(s):"";if(r)try{const t=JSON.parse(r);e=t?this.lodash_get(t,i,""):e}catch(t){e=""}}return e}setdata(t,e){let s=!1;if(/^@/.test(e)){const[,i,r]=/^@(.*?)\.(.*?)$/.exec(e),o=this.getval(i),h=i?"null"===o?null:o||"{}":"{}";try{const e=JSON.parse(h);this.lodash_set(e,r,t),s=this.setval(JSON.stringify(e),i)}catch(e){const o={};this.lodash_set(o,r,t),s=this.setval(JSON.stringify(o),i)}}else s=this.setval(t,e);return s}getval(t){return this.isSurge()||this.isLoon()?$persistentStore.read(t):this.isQuanX()?$prefs.valueForKey(t):this.isNode()?(this.data=this.loaddata(),this.data[t]):this.data&&this.data[t]||null}setval(t,e){return this.isSurge()||this.isLoon()?$persistentStore.write(t,e):this.isQuanX()?$prefs.setValueForKey(t,e):this.isNode()?(this.data=this.loaddata(),this.data[e]=t,this.writedata(),!0):this.data&&this.data[e]||null}initGotEnv(t){this.got=this.got?this.got:require("got"),this.cktough=this.cktough?this.cktough:require("tough-cookie"),this.ckjar=this.ckjar?this.ckjar:new this.cktough.CookieJar,t&&(t.headers=t.headers?t.headers:{},void 0===t.headers.Cookie&&void 0===t.cookieJar&&(t.cookieJar=this.ckjar))}get(t,e=(()=>{})){t.headers&&(delete t.headers["Content-Type"],delete t.headers["Content-Length"]),this.isSurge()||this.isLoon()?(this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.get(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)})):this.isQuanX()?(this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t))):this.isNode()&&(this.initGotEnv(t),this.got(t).on("redirect",(t,e)=>{try{if(t.headers["set-cookie"]){const s=t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();s&&this.ckjar.setCookieSync(s,null),e.cookieJar=this.ckjar}}catch(t){this.logErr(t)}}).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)}))}post(t,e=(()=>{})){if(t.body&&t.headers&&!t.headers["Content-Type"]&&(t.headers["Content-Type"]="application/x-www-form-urlencoded"),t.headers&&delete t.headers["Content-Length"],this.isSurge()||this.isLoon())this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.post(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)});else if(this.isQuanX())t.method="POST",this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t));else if(this.isNode()){this.initGotEnv(t);const{url:s,...i}=t;this.got.post(s,i).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)})}}time(t,e=null){const s=e?new Date(e):new Date;let i={"M+":s.getMonth()+1,"d+":s.getDate(),"H+":s.getHours(),"m+":s.getMinutes(),"s+":s.getSeconds(),"q+":Math.floor((s.getMonth()+3)/3),S:s.getMilliseconds()};/(y+)/.test(t)&&(t=t.replace(RegExp.$1,(s.getFullYear()+"").substr(4-RegExp.$1.length)));for(let e in i)new RegExp("("+e+")").test(t)&&(t=t.replace(RegExp.$1,1==RegExp.$1.length?i[e]:("00"+i[e]).substr((""+i[e]).length)));return t}msg(e=t,s="",i="",r){const o=t=>{if(!t)return t;if("string"==typeof t)return this.isLoon()?t:this.isQuanX()?{"open-url":t}:this.isSurge()?{url:t}:void 0;if("object"==typeof t){if(this.isLoon()){let e=t.openUrl||t.url||t["open-url"],s=t.mediaUrl||t["media-url"];return{openUrl:e,mediaUrl:s}}if(this.isQuanX()){let e=t["open-url"]||t.url||t.openUrl,s=t["media-url"]||t.mediaUrl;return{"open-url":e,"media-url":s}}if(this.isSurge()){let e=t.url||t.openUrl||t["open-url"];return{url:e}}}};if(this.isMute||(this.isSurge()||this.isLoon()?$notification.post(e,s,i,o(r)):this.isQuanX()&&$notify(e,s,i,o(r))),!this.isMuteLog){let t=["","==============📣系统通知📣=============="];t.push(e),s&&t.push(s),i&&t.push(i),console.log(t.join("\n")),this.logs=this.logs.concat(t)}}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.join(this.logSeparator))}logErr(t,e){const s=!this.isSurge()&&!this.isQuanX()&&!this.isLoon();s?this.log("",`❗️${this.name}, 错误!`,t.stack):this.log("",`❗️${this.name}, 错误!`,t)}wait(t){return new Promise(e=>setTimeout(e,t))}done(t={}){const e=(new Date).getTime(),s=(e-this.startTime)/1e3;this.log("",`🔔${this.name}, 结束! 🕛 ${s} 秒`),this.log(),(this.isSurge()||this.isQuanX()||this.isLoon())&&$done(t)}}(t,e)}

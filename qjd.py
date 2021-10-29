@@ -1,432 +1,829 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*
-#全民抢京豆（8.6-8.16)
-'''
-项目名称: JD-Script / jd_qjd
-Author: Curtin
-功能：全民抢京豆（10.29-11.06）：https://h5.m.jd.com/rn/3MQXMdRUTeat9xqBSZDSCCAE9Eqz/index.html?has_native=0
-    满160豆需要20人助力，每个用户目前只能助力2次不同的用户。
-Date: 2021/7/3 上午10:02
-TG交流 https://t.me/topstyle996
-TG频道 https://t.me/TopStyle2021
-update: 2021.7.24 14:21
-建议cron: 0 0 * * *  python3 jd_qjd.py
-new Env('全民抢京豆 10.29-11.06');
-* 修复了助力活动不存在、增加了随机UA（如果未定义ua则启用随机UA）
-* 新增推送
-* 修复0点不能开团
-* 兼容pin为中文转码编码
-'''
-# print("全民抢京豆(7.22-7.31）--活动已结束\nTG交流 https://t.me/topstyle996\nTG频道 https://t.me/TopStyle2021")
-# exit(0)
-#ck 优先读取【JDCookies.txt】 文件内的ck  再到 ENV的 变量 JD_COOKIE='ck1&ck2' 最后才到脚本内 cookies=ck
-cookies = ''
-qjd_zlzh = ['Your JD_User', '买买买']
+/*
+领京豆额外奖励&抢京豆
+脚本自带助力码，介意者可将 29行 helpAuthor 变量设置为 false
+活动入口：京东APP首页-领京豆
+更新地址：https://raw.githubusercontent.com/Aaron-lv/sync/jd_scripts/jd_bean_home.js
+已支持IOS双京东账号, Node.js支持N个京东账号
+脚本兼容: QuantumultX, Surge, Loon, 小火箭，JSBox, Node.js
+============Quantumultx===============
+[task_local]
+#领京豆额外奖励
+23 1,12,22 * * * https://raw.githubusercontent.com/Aaron-lv/sync/jd_scripts/jd_bean_home.js, tag=领京豆额外奖励, img-url=https://raw.githubusercontent.com/58xinian/icon/master/jd_bean_home.png, enabled=true
+================Loon==============
+[Script]
+cron "23 1,12,22 * * *" script-path=https://raw.githubusercontent.com/Aaron-lv/sync/jd_scripts/jd_bean_home.js, tag=领京豆额外奖励
+===============Surge=================
+领京豆额外奖励 = type=cron,cronexp="23 1,12,22 * * *",wake-system=1,timeout=3600,script-path=https://raw.githubusercontent.com/Aaron-lv/sync/jd_scripts/jd_bean_home.js
+============小火箭=========
+领京豆额外奖励 = type=cron,script-path=https://raw.githubusercontent.com/Aaron-lv/sync/jd_scripts/jd_bean_home.js, cronexpr="23 1,12,22 * * *", timeout=3600, enable=true
+ */
+const $ = new Env('领京豆额外奖励');
 
-# Env环境设置 通知服务
-# export BARK=''                   # bark服务,苹果商店自行搜索;
-# export SCKEY=''                  # Server酱的SCKEY;
-# export TG_BOT_TOKEN=''           # tg机器人的TG_BOT_TOKEN;
-# export TG_USER_ID=''             # tg机器人的TG_USER_ID;
-# export TG_API_HOST=''            # tg 代理api
-# export TG_PROXY_IP=''            # tg机器人的TG_PROXY_IP;
-# export TG_PROXY_PORT=''          # tg机器人的TG_PROXY_PORT;
-# export DD_BOT_ACCESS_TOKEN=''    # 钉钉机器人的DD_BOT_ACCESS_TOKEN;
-# export DD_BOT_SECRET=''          # 钉钉机器人的DD_BOT_SECRET;
-# export QQ_SKEY=''                # qq机器人的QQ_SKEY;
-# export QQ_MODE=''                # qq机器人的QQ_MODE;
-# export QYWX_AM=''                # 企业微信；http://note.youdao.com/s/HMiudGkb
-# export PUSH_PLUS_TOKEN=''        # 微信推送Plus+ ；
+const notify = $.isNode() ? require('./sendNotify') : '';
+//Node.js用户请在jdCookie.js处填写京东ck;
+const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
+let jdNotify = true;//是否关闭通知，false打开通知推送，true关闭通知推送
+const helpAuthor = false; // 是否帮助作者助力，false打开通知推送，true关闭通知推送
+//IOS等用户直接用NobyDa的jd cookie
+let cookiesArr = [], cookie = '', uuid = '', message;
+if ($.isNode()) {
+  Object.keys(jdCookieNode).forEach((item) => {
+    cookiesArr.push(jdCookieNode[item])
+  })
+  if (process.env.JD_DEBUG && process.env.JD_DEBUG === 'false') console.log = () => {
+  };
+} else {
+  cookiesArr = [$.getdata('CookieJD'), $.getdata('CookieJD2'), ...jsonParse($.getdata('CookiesJD') || "[]").map(item => item.cookie)].filter(item => !!item);
+}
+const JD_API_HOST = 'https://api.m.jd.com/';
+!(async () => {
+  $.newShareCodes = []
+  $.authorCode = await getAuthorShareCode('https://raw.githubusercontent.com/Aaron-lv/updateTeam/master/shareCodes/jd_updateBeanHome.json')
+  if (!$.authorCode) {
+    $.http.get({url: 'https://purge.jsdelivr.net/gh/Aaron-lv/updateTeam@master/shareCodes/jd_updateBeanHome.json'}).then((resp) => {}).catch((e) => $.log('刷新CDN异常', e));
+    await $.wait(1000)
+    $.authorCode = await getAuthorShareCode('https://cdn.jsdelivr.net/gh/Aaron-lv/updateTeam@master/shareCodes/jd_updateBeanHome.json') || []
+  }
+  if (!cookiesArr[0]) {
+    $.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/bean/signIndex.action', {"open-url": "https://bean.m.jd.com/bean/signIndex.action"});
+    return;
+  }
+  for (let i = 0; i < cookiesArr.length; i++) {
+    if (cookiesArr[i]) {
+      cookie = cookiesArr[i];
+      $.UserName = decodeURIComponent(cookie.match(/pt_pin=([^; ]+)(?=;?)/) && cookie.match(/pt_pin=([^; ]+)(?=;?)/)[1])
+      $.index = i + 1;
+      $.isLogin = true;
+      $.nickName = '';
+      message = '';
+      uuid = randomString()
+      await TotalBean();
+      console.log(`\n******开始【京东账号${$.index}】${$.nickName || $.UserName}*********\n`);
+      if (!$.isLogin) {
+        $.msg($.name, `【提示】cookie已失效`, `京东账号${$.index} ${$.nickName || $.UserName}\n请重新登录获取\nhttps://bean.m.jd.com/bean/signIndex.action`, {"open-url": "https://bean.m.jd.com/bean/signIndex.action"});
 
-#####
-
-# 建议调整一下的参数
-# UA 可自定义你的，注意格式: jdapp;iPhone;10.0.4;13.1.1;93b4243eeb1af72d142991d85cba75c66873dca5;network/wifi;ADID/8679C062-A41A-4A25-88F1-50A7A3EEF34A;model/iPhone13,1;addressid/3723896896;appBuild/167707;jdSupportDarkMode/0
-UserAgent = ''
-# 限制速度 （秒）
-sleepNum = 0.1
-
-import os, re, sys
-import random, string
-try:
-    import requests
-except Exception as e:
-    print(e, "\n缺少requests 模块，请执行命令安装：python3 -m pip install requests")
-    exit(3)
-from urllib.parse import unquote
-import json
-import time
-requests.packages.urllib3.disable_warnings()
-
-pwd = os.path.dirname(os.path.abspath(__file__)) + os.sep
-t = time.time()
-aNum = 0
-beanCount = 0
-userCount = {}
-## 获取通知服务
-class msg(object):
-    def __init__(self, m):
-        self.str_msg = m
-        self.message()
-    def message(self):
-        global msg_info
-        print(self.str_msg)
-        try:
-            msg_info = "{}\n{}".format(msg_info, self.str_msg)
-        except:
-            msg_info = "{}".format(self.str_msg)
-        sys.stdout.flush()
-    def getsendNotify(self, a=0):
-        if a == 0:
-            a += 1
-        try:
-            url = 'https://gitee.com/curtinlv/Public/raw/master/sendNotify.py'
-            response = requests.get(url)
-            if 'curtinlv' in response.text:
-                with open('sendNotify.py', "w+", encoding="utf-8") as f:
-                    f.write(response.text)
-            else:
-                if a < 5:
-                    a += 1
-                    return self.getsendNotify(a)
-                else:
-                    pass
-        except:
-            if a < 5:
-                a += 1
-                return self.getsendNotify(a)
-            else:
-                pass
-    def main(self):
-        global send
-        cur_path = os.path.abspath(os.path.dirname(__file__))
-        sys.path.append(cur_path)
-        if os.path.exists(cur_path + "/sendNotify.py"):
-            try:
-                from sendNotify import send
-            except:
-                self.getsendNotify()
-                try:
-                    from sendNotify import send
-                except:
-                    print("加载通知服务失败~")
-        else:
-            self.getsendNotify()
-            try:
-                from sendNotify import send
-            except:
-                print("加载通知服务失败~")
-        ###################
-msg("").main()
-##############
-def getEnvs(label):
-    try:
-        if label == 'True' or label == 'yes' or label == 'true' or label == 'Yes':
-            return True
-        elif label == 'False' or label == 'no' or label == 'false' or label == 'No':
-            return False
-    except Exception as e:
-        pass
-    try:
-        if '.' in label:
-            return float(label)
-        elif '&' in label:
-            return label.split('&')
-        elif '@' in label:
-            return label.split('@')
-        else:
-            return int(label)
-    except:
-        return label
-class getJDCookie(object):
-    # 适配各种平台环境ck
-
-    def getckfile(self):
-        global v4f
-        curf = pwd + 'JDCookies.txt'
-        v4f = '/jd/config/config.sh'
-        ql_new = '/ql/config/env.sh'
-        ql_old = '/ql/config/cookie.sh'
-        if os.path.exists(curf):
-            with open(curf, "r", encoding="utf-8") as f:
-                cks = f.read()
-                f.close()
-            r = re.compile(r"pt_key=.*?pt_pin=.*?;", re.M | re.S | re.I)
-            cks = r.findall(cks)
-            if len(cks) > 0:
-                return curf
-            else:
-                pass
-        if os.path.exists(ql_new):
-            print("当前环境青龙面板新版")
-            return ql_new
-        elif os.path.exists(ql_old):
-            print("当前环境青龙面板旧版")
-            return ql_old
-        elif os.path.exists(v4f):
-            print("当前环境V4")
-            return v4f
-        return curf
-
-    # 获取cookie
-    def getCookie(self):
-        global cookies
-        ckfile = self.getckfile()
-        try:
-            if os.path.exists(ckfile):
-                with open(ckfile, "r", encoding="utf-8") as f:
-                    cks = f.read()
-                    f.close()
-                if 'pt_key=' in cks and 'pt_pin=' in cks:
-                    r = re.compile(r"pt_key=.*?pt_pin=.*?;", re.M | re.S | re.I)
-                    cks = r.findall(cks)
-                    if len(cks) > 0:
-                        if 'JDCookies.txt' in ckfile:
-                            print("当前获取使用 JDCookies.txt 的cookie")
-                        cookies = ''
-                        for i in cks:
-                            if 'pt_key=xxxx' in i:
-                                pass
-                            else:
-                                cookies += i
-                        return
-            else:
-                with open(pwd + 'JDCookies.txt', "w", encoding="utf-8") as f:
-                    cks = "#多账号换行，以下示例：（通过正则获取此文件的ck，理论上可以自定义名字标记ck，也可以随意摆放ck）\n账号1【Curtinlv】cookie1;\n账号2【TopStyle】cookie2;"
-                    f.write(cks)
-                    f.close()
-            if "JD_COOKIE" in os.environ:
-                if len(os.environ["JD_COOKIE"]) > 10:
-                    cookies = os.environ["JD_COOKIE"]
-                    print("已获取并使用Env环境 Cookie")
-        except Exception as e:
-            print(f"【getCookie Error】{e}")
-
-        # 检测cookie格式是否正确
-    def getUserInfo(self, ck, pinName, userNum):
-        url = 'https://me-api.jd.com/user_new/info/GetJDUserInfoUnion?orgFlag=JD_PinGou_New&callSource=mainorder&channel=4&isHomewhite=0&sceneval=2&sceneval=2&callback='
-        headers = {
-            'Cookie': ck,
-            'Accept': '*/*',
-            'Connection': 'close',
-            'Referer': 'https://home.m.jd.com/myJd/home.action',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Host': 'me-api.jd.com',
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.2 Mobile/15E148 Safari/604.1',
-            'Accept-Language': 'zh-cn'
+        if ($.isNode()) {
+          await notify.sendNotify(`${$.name}cookie已失效 - ${$.UserName}`, `京东账号${$.index} ${$.UserName}\n请重新登录获取cookie`);
         }
-        try:
-            if sys.platform == 'ios':
-                resp = requests.get(url=url, verify=False, headers=headers, timeout=60).json()
-            else:
-                resp = requests.get(url=url, headers=headers, timeout=60).json()
-            if resp['retcode'] == "0":
-                nickname = resp['data']['userInfo']['baseInfo']['nickname']
-                return ck, nickname
-            else:
-                context = f"账号{userNum}【{pinName}】Cookie 已失效！请重新获取。"
-                print(context)
-                return ck, False
-        except Exception:
-            context = f"账号{userNum}【{pinName}】Cookie 已失效！请重新获取。"
-            print(context)
-            return ck, False
-
-    def iscookie(self):
-        """
-        :return: cookiesList,userNameList,pinNameList
-        """
-        cookiesList = []
-        userNameList = []
-        pinNameList = []
-        if 'pt_key=' in cookies and 'pt_pin=' in cookies:
-            r = re.compile(r"pt_key=.*?pt_pin=.*?;", re.M | re.S | re.I)
-            result = r.findall(cookies)
-            if len(result) >= 1:
-                print("您已配置{}个账号".format(len(result)))
-                u = 1
-                for i in result:
-                    r = re.compile(r"pt_pin=(.*?);")
-                    pinName = r.findall(i)
-                    pinName = unquote(pinName[0])
-                    # 获取账号名
-                    ck, nickname = self.getUserInfo(i, pinName, u)
-                    if nickname != False:
-                        cookiesList.append(ck)
-                        userNameList.append(nickname)
-                        pinNameList.append(pinName)
-                    else:
-                        u += 1
-                        continue
-                    u += 1
-                if len(cookiesList) > 0 and len(userNameList) > 0:
-                    return cookiesList, userNameList, pinNameList
-                else:
-                    print("没有可用Cookie，已退出")
-                    exit(3)
-            else:
-                print("cookie 格式错误！...本次操作已退出")
-                exit(4)
-        else:
-            print("cookie 格式错误！...本次操作已退出")
-            exit(4)
-getCk = getJDCookie()
-getCk.getCookie()
-# 获取v4环境 特殊处理
-if os.path.exists(v4f):
-    try:
-        with open(v4f, 'r', encoding='utf-8') as f:
-            curenv = locals()
-            for i in f.readlines():
-                r = re.compile(r'^export\s(.*?)=[\'\"]?([\w\.\-@#!&=_,\[\]\{\}\(\)]{1,})+[\'\"]{0,1}$', re.M | re.S | re.I)
-                r = r.findall(i)
-                if len(r) > 0:
-                    for i in r:
-                        if i[0] != 'JD_COOKIE':
-                            curenv[i[0]] = getEnvs(i[1])
-    except:
-        pass
-
-if "qjd_zlzh" in os.environ:
-    if len(os.environ["qjd_zlzh"]) > 1:
-        qjd_zlzh = os.environ["qjd_zlzh"]
-        qjd_zlzh = qjd_zlzh.replace('[', '').replace(']', '').replace('\'', '').replace(' ', '').split(',')
-        print("已获取并使用Env环境 qjd_zlzh:", qjd_zlzh)
-
-
-def userAgent():
-    """
-    随机生成一个UA
-    :return:
-    """
-    if not UserAgent:
-        uuid = ''.join(random.sample('123456789abcdef123456789abcdef123456789abcdef123456789abcdef', 40))
-        iosVer = ''.join(random.sample(["14.5.1", "14.4", "14.3", "14.2", "14.1", "14.0.1", "13.7", "13.1.2", "13.1.1"], 1))
-        iPhone = ''.join(random.sample(["8", "9", "10", "11", "12", "13"], 1))
-        return f'jdapp;iPhone;10.0.4;{iosVer};{uuid};network/wifi;ADID/8679C062-A41A-4A25-88F1-50A7A3EEF34A;model/iPhone{iPhone},1;addressid/3723896896;appBuild/167707;jdSupportDarkMode/0'
-    else:
-        return UserAgent
-
-def getShareCode(ck):
-    global aNum
-    try:
-        # uuid = ''.join(random.sample('123456789abcdef123456789abcdef123456789abcdef123456789abcdef', 40))
-        v_num1 = ''.join(random.sample(["1", "2", "3", "4", "5", "6", "7", "8", "9"], 1)) + ''.join(random.sample(string.digits, 4))
-        url1 = f'https://api.m.jd.com/client.action?functionId=signGroupHit&body=%7B%22activeType%22%3A2%7D&appid=ld&client=apple&clientVersion=10.0.6&networkType=wifi&osVersion=14.3&uuid=&jsonp=jsonp_' + str(int(round(t * 1000))) + '_' + v_num1
-        url = 'https://api.m.jd.com/client.action?functionId=signBeanGroupStageIndex&body=%7B%22monitor_refer%22%3A%22%22%2C%22rnVersion%22%3A%223.9%22%2C%22fp%22%3A%22-1%22%2C%22shshshfp%22%3A%22-1%22%2C%22shshshfpa%22%3A%22-1%22%2C%22referUrl%22%3A%22-1%22%2C%22userAgent%22%3A%22-1%22%2C%22jda%22%3A%22-1%22%2C%22monitor_source%22%3A%22bean_m_bean_index%22%7D&appid=ld&client=apple&clientVersion=&networkType=&osVersion=&uuid=&jsonp=jsonp_' + str(int(round(t * 1000))) + '_' + v_num1
-        head = {
-            'Cookie': ck,
-            'Accept': '*/*',
-            'Connection': 'keep-alive',
-            'Referer': 'https://h5.m.jd.com/rn/3MQXMdRUTeat9xqBSZDSCCAE9Eqz/index.html?has_native=0',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Host': 'api.m.jd.com',
-            # 'User-Agent': 'Mozilla/5.0 (iPhone CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.2 Mobile/15E148 Safari/604.1',
-            'User-Agent': userAgent(),
-            'Accept-Language': 'zh-cn'
+        continue
+      }
+      await jdBeanHome();
+    }
+  }
+  for (let i = 0; i < cookiesArr.length; i++) {
+    $.index = i + 1;
+    if (cookiesArr[i]) {
+      cookie = cookiesArr[i];
+      $.canHelp = true;
+      $.UserName = decodeURIComponent(cookie.match(/pt_pin=([^; ]+)(?=;?)/) && cookie.match(/pt_pin=([^; ]+)(?=;?)/)[1])
+      if ($.newShareCodes.length > 1) {
+        console.log(`\n【抢京豆】 ${$.UserName} 去助力排名第一的cookie`);
+        // let code = $.newShareCodes[(i + 1) % $.newShareCodes.length]
+        // await help(code[0], code[1])
+        let code = $.newShareCodes[0];
+        if(code[2] && code[2] ===  $.UserName){
+          //不助力自己
+        } else {
+          await help(code[0], code[1]);
         }
-        requests.get(url1,  headers=head, verify=False, timeout=30)
-        resp = requests.get(url=url, headers=head, verify=False, timeout=30).text
-        r = re.compile(r'jsonp_.*?\((.*?)\)\;', re.M | re.S | re.I)
-        result = r.findall(resp)
-        jsonp = json.loads(result[0])
-        try:
-            groupCode = jsonp['data']['groupCode']
-            shareCode = jsonp['data']['shareCode']
-            activityId = jsonp['data']['activityMsg']['activityId']
-            sumBeanNumStr = int(jsonp['data']['sumBeanNumStr'])
-        except:
-            if aNum < 5:
-                aNum += 1
-                return getShareCode(ck)
-            else:
-                groupCode = 0
-                shareCode = 0
-                sumBeanNumStr = 0
-                aNum = 0
-                activityId = 0
-        aNum = 0
-        return groupCode, shareCode, sumBeanNumStr, activityId
-    except Exception as e:
-        print(f"getShareCode Error", e)
-
-def helpCode(ck, groupCode, shareCode,u, unum, user, activityId):
-    try:
-        v_num1 = ''.join(random.sample(["1", "2", "3", "4", "5", "6", "7", "8", "9"], 1)) + ''.join(random.sample(string.digits, 4))
-        headers = {
-            'Cookie': ck,
-            'Accept': '*/*',
-            'Connection': 'keep-alive',
-            'Referer': f'https://h5.m.jd.com/rn/42yjy8na6pFsq1cx9MJQ5aTgu3kX/index.html?jklActivityId=115&source=SignSuccess&jklGroupCode={groupCode}&ad_od=1&jklShareCode={shareCode}',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Host': 'api.m.jd.com',
-            'User-Agent': userAgent(),
-            'Accept-Language': 'zh-cn'
+      }
+      if (helpAuthor && $.authorCode && $.canHelp) {
+        console.log(`\n【抢京豆】${$.UserName} 去帮助作者`)
+        for (let code of $.authorCode) {
+          const helpRes = await help(code.shareCode, code.groupCode);
+          if (helpRes && helpRes['code'] === '0') {
+            if (helpRes && helpRes.data && helpRes.data.respCode === 'SG209') {
+              console.log(`${helpRes.data.helpToast}\n`);
+              break;
+            }
+          } else {
+            console.log(`助力异常:${JSON.stringify(helpRes)}\n`);
+          }
         }
-        url = 'https://api.m.jd.com/client.action?functionId=signGroupHelp&body=%7B%22activeType%22%3A2%2C%22groupCode%22%3A%22' + str(groupCode) + '%22%2C%22shareCode%22%3A%22' + shareCode + f'%22%2C%22activeId%22%3A%22{activityId}%22%2C%22source%22%3A%22guest%22%7D&appid=ld&client=apple&clientVersion=10.0.4&networkType=wifi&osVersion=13.7&uuid=&openudid=&jsonp=jsonp_{int(round(t * 1000))}_{v_num1}'
-        resp = requests.get(url=url, headers=headers, verify=False, timeout=30).text
-        r = re.compile(r'jsonp_.*?\((.*?)\)\;', re.M | re.S | re.I)
-        result = r.findall(resp)
-        jsonp = json.loads(result[0])
-        helpToast = jsonp['data']['helpToast']
-        pageFlag = jsonp['data']['pageFlag']
-        if pageFlag == 0:
-            print(f"账号{unum}【{u}】助力失败! 原因：{helpToast}")
-            if '满' in helpToast:
-                print(f"## 恭喜账号【{user}】团已满，今日累计获得160豆")
-                return True
-            return False
-        else:
-            if '火' in helpToast:
-                print(f"账号{unum}【{u}】助力失败! 原因：{helpToast}")
-            else:
-                print(f"账号{unum}【{u}】{helpToast} , 您也获得1豆哦~")
-            return False
-    except Exception as e:
-        print(f"helpCode Error ", e)
+      }
+      for (let j = 1; j < $.newShareCodes.length && $.canHelp; j++) {
+        let code = $.newShareCodes[j];
+        if(code[2] && code[2] ===  $.UserName){
+          //不助力自己
+        } else {
+          console.log(`【抢京豆】${$.UserName} 去助力账号 ${j + 1}`);
+          await help(code[0], code[1]);
+          await $.wait(2000);
+        }
+      }
+    }
+  }
+})()
+  .catch((e) => {
+    $.log('', `❌ ${$.name}, 失败! 原因: ${e}!`, '')
+  })
+  .finally(() => {
+    $.done();
+  })
 
-def start():
-    scriptName='### 全民抢京豆-助力 ###'
-    print(scriptName)
-    global cookiesList, userNameList, pinNameList, ckNum, beanCount, userCount
-    cookiesList, userNameList, pinNameList = getCk.iscookie()
-    for ckname in qjd_zlzh:
-        try:
-            ckNum = userNameList.index(ckname)
-        except Exception as e:
-            try:
-                ckNum = pinNameList.index(unquote(ckname))
-            except:
-                print(f"请检查被助力账号【{ckname}】名称是否正确？提示：助力名字可填pt_pin的值、也可以填账号名。")
-                continue
+async function jdBeanHome() {
+  try {
+    $.doneState = false
+    // for (let i = 0; i < 3; ++i) {
+    //   await doTask2()
+    //   await $.wait(1000)
+    //   if ($.doneState) break
+    // }
+    do {
+      await doTask2()
+      await $.wait(3000)
+    } while (!$.doneState)
+    await $.wait(1000)
+    await award("feeds")
+    await $.wait(1000)
+    await getUserInfo()
+    await $.wait(1000)
+    await getTaskList();
+    await receiveJd2();
 
-        print(f"### 开始助力账号【{userNameList[int(ckNum)]}】###")
-        groupCode, shareCode, sumBeanNumStr, activityId = getShareCode(cookiesList[ckNum])
-        if groupCode == 0:
-            msg(f"## {userNameList[int(ckNum)]}  获取互助码失败。请手动分享后再试~ 或建议早上再跑。")
-            continue
-        u = 0
-        for i in cookiesList:
-            if i == cookiesList[ckNum]:
-                u += 1
-                continue
-            result = helpCode(i, groupCode, shareCode, userNameList[u], u+1, userNameList[int(ckNum)], activityId)
-            time.sleep(sleepNum)
-            if result:
+    await morningGetBean()
+    await $.wait(1000)
+
+    await beanTaskList(1)
+    await $.wait(1000)
+    await queryCouponInfo()
+    $.doneState = false
+    let num = 0
+    do {
+      await $.wait(2000)
+      await beanTaskList(2)
+      num++
+    } while (!$.doneState && num < 5)
+    await $.wait(2000)
+    if ($.doneState) await beanTaskList(3)
+
+    await showMsg();
+  } catch (e) {
+    $.logErr(e)
+  }
+}
+
+// 早起福利
+function morningGetBean() {
+  return new Promise(resolve => {
+    $.post(taskBeanUrl('morningGetBean', {"fp":"-1","shshshfp":"-1","shshshfpa":"-1","referUrl":"-1","userAgent":"-1","jda":"-1","rnVersion":"3.9"}), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} morningGetBean API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.data.awardResultFlag === "1") {
+              console.log(`早起福利领取成功：${data.data.bizMsg}`)
+            } else if (data.data.awardResultFlag === "2") {
+              console.log(`早起福利领取失败：${data.data.bizMsg}`)
+            } else {
+              console.log(`早起福利领取失败：${data.data.bizMsg}`)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve(data);
+      }
+    })
+  })
+}
+
+// 升级领京豆任务
+async function beanTaskList(type) {
+  return new Promise(resolve => {
+    $.post(taskBeanUrl('beanTaskList', {"viewChannel":"myjd"}), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} beanTaskList API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            switch (type) {
+              case 1:
+                console.log(`当前等级:${data.data.curLevel} 下一级可领取:${data.data.nextLevelBeanNum || 0}京豆`)
+                if (data.data.viewAppHome) {
+                  if (!data.data.viewAppHome.takenTask) {
+                    console.log(`去做[${data.data.viewAppHome.mainTitle}]`)
+                    await beanHomeIconDoTask({"flag":"0","viewChannel":"myjd"})
+                  }
+                  await $.wait(2000)
+                  if (!data.data.viewAppHome.doneTask) {
+                    console.log(`去领奖[${data.data.viewAppHome.mainTitle}]`)
+                    await beanHomeIconDoTask({"flag":"1","viewChannel":"AppHome"})
+                  } else {
+                    console.log(`[${data.data.viewAppHome.mainTitle}]已做完`)
+                  }
+                }
                 break
-            u += 1
-        groupCode, shareCode, sumBeanNumStr, activityId = getShareCode(cookiesList[ckNum])
-        userCount[f'{userNameList[ckNum]}'] = sumBeanNumStr
-        beanCount += sumBeanNumStr
-    print("\n-------------------------")
-    for i in userCount.keys():
-        msg(f"账号【{i}】已抢京豆: {userCount[i]}")
-    msg(f"## 今日累计获得 {beanCount} 京豆")
-    try:
-        send(scriptName, msg_info)
-    except:
-        pass
+              case 2:
+                $.doneState = true
+                let taskInfos = data.data.taskInfos
+                for (let key of Object.keys(taskInfos)) {
+                  let vo = taskInfos[key]
+                  if (vo.times < vo.maxTimes) {
+                    for (let key of Object.keys(vo.subTaskVOS)) {
+                      let taskList = vo.subTaskVOS[key]
+                      if (taskList.status === 1) {
+                        $.doneState = false
+                        console.log(`去做[${vo.taskName}]${taskList.title || ''}`)
+                        await $.wait(2000)
+                        await beanDoTask({"actionType": 1, "taskToken": `${taskList.taskToken}`}, vo.taskType)
+                        if (vo.taskType === 9 || vo.taskType === 8) {
+                          await $.wait(vo.waitDuration * 1000 || 5000)
+                          await beanDoTask({"actionType": 0, "taskToken": `${taskList.taskToken}`}, vo.taskType)
+                        }
+                      }
+                    }
+                  }
+                }
+                break
+              case 3:
+                let taskInfos3 = data.data.taskInfos
+                for (let key of Object.keys(taskInfos3)) {
+                  let vo = taskInfos3[key]
+                  if (vo.times === vo.maxTimes) {
+                    console.log(`[${vo.taskName}]已做完`)
+                  }
+                }
+              default:
+                break
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+function beanDoTask(body, taskType) {
+  return new Promise(resolve => {
+    $.post(taskBeanUrl('beanDoTask', body), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} beanDoTask API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (body.actionType === 1 && (taskType !== 9 && taskType !== 8)) {
+              if (data.code === "0" && data.data.bizCode === "0") {
+                console.log(`完成任务，获得+${data.data.score}成长值`)
+              } else {
+                console.log(`完成任务失败：${data}`)
+              }
+            }
+            if (body.actionType === 0) {
+              if (data.code === "0" && data.data.bizCode === "0") {
+                console.log(data.data.bizMsg)
+              } else {
+                console.log(`完成任务失败：${data}`)
+              }
+            } 
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve(data);
+      }
+    })
+  })
+}
+function beanHomeIconDoTask(body) {
+  return new Promise(resolve => {
+    $.post(taskBeanUrl('beanHomeIconDoTask', body), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} beanHomeIconDoTask API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (body.flag === "0" && data.data.taskResult) {
+              console.log(data.data.remindMsg)
+            }
+            if (body.flag === "1" && data.data.taskResult) {
+              console.log(data.data.remindMsg)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve(data);
+      }
+    })
+  })
+}
+async function queryCouponInfo() {
+  return new Promise(async resolve => {
+    $.get(taskBeanUrl('queryCouponInfo', {"rnVersion":"4.7","fp":"-1","shshshfp":"-1","shshshfpa":"-1","referUrl":"-1","userAgent":"-1","jda":"-1"}), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} queryCouponInfo API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.data && data.data.couponTaskInfo) {
+              if (!data.data.couponTaskInfo.awardFlag) {
+                console.log(`去做[${data.data.couponTaskInfo.taskName}]`)
+                await sceneGetCoupon()
+              } else {
+                console.log(`[${data.data.couponTaskInfo.taskName}]已做完`)
+              }
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+function sceneGetCoupon() {
+  return new Promise(resolve => {
+    $.get(taskBeanUrl('sceneGetCoupon', {"rnVersion":"4.7","fp":"-1","shshshfp":"-1","shshshfpa":"-1","referUrl":"-1","userAgent":"-1","jda":"-1"}), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} sceneGetCoupon API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.code === '0' && data.data && data.data.bizMsg) {
+              console.log(data.data.bizMsg)
+            } else {
+              console.log(`完成任务失败：${data}`)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+function randomString() {
+  return Math.random().toString(16).slice(2, 10) +
+    Math.random().toString(16).slice(2, 10) +
+    Math.random().toString(16).slice(2, 10) +
+    Math.random().toString(16).slice(2, 10) +
+    Math.random().toString(16).slice(2, 10)
+}
+
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+function doTask2() {
+    return new Promise(resolve => {
+      const body = {"awardFlag": false, "skuId": `${getRandomInt(10000000,20000000)}`, "source": "feeds", "type": '1'};
+      $.post(taskUrl('beanHomeTask', body), (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`)
+            console.log(`${$.name} API请求失败，请检查网路重试`)
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code === '0' && data.data){
+                console.log(`任务完成进度：${data.data.taskProgress}/${data.data.taskThreshold}`)
+                if(data.data.taskProgress === data.data.taskThreshold)
+                  $.doneState = true
+              } else if (data.code === '0' && data.errorCode === 'HT201') {
+                $.doneState = true
+              } else {
+                //HT304风控用户
+                $.doneState = true
+                console.log(`做任务异常：${JSON.stringify(data)}`)
+              }
+            }
+          }
+        } catch (e) {
+          $.logErr(e, resp)
+        } finally {
+          resolve();
+        }
+      })
+    })
+}
+
+function getAuthorShareCode(url) {
+  return new Promise(resolve => {
+    const options = {
+      url: `${url}?${new Date()}`, "timeout": 10000, headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1 Edg/87.0.4280.88"
+      }
+    };
+    if ($.isNode() && process.env.TG_PROXY_HOST && process.env.TG_PROXY_PORT) {
+      const tunnel = require("tunnel");
+      const agent = {
+        https: tunnel.httpsOverHttp({
+          proxy: {
+            host: process.env.TG_PROXY_HOST,
+            port: process.env.TG_PROXY_PORT * 1
+          }
+        })
+      }
+      Object.assign(options, { agent })
+    }
+    $.get(options, async (err, resp, data) => {
+      try {
+        if (err) {
+        } else {
+          if (data) data = JSON.parse(data)
+        }
+      } catch (e) {
+        // $.logErr(e, resp)
+      } finally {
+        resolve(data);
+      }
+    })
+  })
+}
+function getUserInfo() {
+  return new Promise(resolve => {
+    $.post(taskUrl('signBeanGroupStageIndex', 'body'), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if(data.data.jklInfo) {
+              $.actId = data.data.jklInfo.keyId
+              let {shareCode, groupCode} = data.data
+              if (!shareCode) {
+                console.log(`未获取到助力码，去开团`)
+                await hitGroup()
+              } else {
+                console.log(shareCode, groupCode)
+                // 去做逛会场任务
+                if (data.data.beanActivityVisitVenue && data.data.beanActivityVisitVenue.taskStatus === '0') {
+                  await help(shareCode, groupCode, 1)
+                }
+                console.log(`\n京东账号${$.index} ${$.nickName || $.UserName} 抢京豆邀请码：${shareCode}\n`);
+                $.newShareCodes.push([shareCode, groupCode, $.UserName])
+              }
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+
+function hitGroup() {
+  return new Promise(resolve => {
+    const body = {"activeType": 2,};
+    $.get(taskGetUrl('signGroupHit', body), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.data.respCode === "SG150") {
+              let {shareCode, groupCode} = data.data.signGroupMain
+              if (shareCode) {
+                $.newShareCodes.push([shareCode, groupCode, $.UserName])
+                console.log('开团成功')
+                console.log(`\n京东账号${$.index} ${$.nickName || $.UserName} 抢京豆邀请码：${shareCode}\n`);
+                await help(shareCode, groupCode, 1)
+              } else {
+                console.log(`为获取到助力码，错误信息${JSON.stringify(data.data)}`)
+              }
+            } else {
+              console.log(`开团失败，错误信息${JSON.stringify(data.data)}`)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+
+function help(shareCode, groupCode, isTask = 0) {
+  return new Promise(resolve => {
+    const body = {
+      "activeType": 2,
+      "groupCode": groupCode,
+      "shareCode": shareCode,
+      "activeId": $.actId,
+    };
+    if (isTask) {
+      console.log(`【抢京豆】做任务获取助力`)
+      body['isTask'] = "1"
+    } else {
+      console.log(`【抢京豆】去助力好友${shareCode}`)
+      body['source'] = "guest"
+    }
+    $.get(taskGetUrl('signGroupHelp', body), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`【抢京豆】${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.code === '0') {
+              console.log(`【抢京豆】${data.data.helpToast}`)
+            }
+            if(data.code === '0' && data.data && data.data.respCode === 'SG209') {
+              $.canHelp = false;
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve(data);
+      }
+    })
+  })
+}
+
+function showMsg() {
+  return new Promise(resolve => {
+    if (message) $.msg($.name, '', `【京东账号${$.index}】${$.nickName}\n${message}`);
+    resolve()
+  })
+}
+
+function getTaskList() {
+  return new Promise(resolve => {
+    const body = {"rnVersion": "4.7", "rnClient": "2", "source": "AppHome"};
+    $.post(taskUrl('findBeanHome', body), async (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            let beanTask = data.data.floorList.filter(vo => vo.floorName === "种豆得豆定制化场景")[0]
+            if (!beanTask.viewed) {
+              await receiveTask()
+              await $.wait(3000)
+            }
+
+            let tasks = data.data.floorList.filter(vo => vo.floorName === "赚京豆")[0]['stageList']
+            for (let i = 0; i < tasks.length; ++i) {
+              const vo = tasks[i]
+              if (vo.viewed) continue
+              await receiveTask(vo.stageId, `4_${vo.stageId}`)
+              await $.wait(3000)
+            }
+            await award()
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+
+function receiveTask(itemId = "zddd", type = "3") {
+  return new Promise(resolve => {
+    const body = {"awardFlag": false, "itemId": itemId, "source": "home", "type": type};
+    $.post(taskUrl('beanHomeTask', body), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.data) {
+              console.log(`完成任务成功，进度${data.data.taskProgress}/${data.data.taskThreshold}`)
+            } else {
+              console.log(`完成任务失败，${data.errorMessage}`)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
 
 
-if __name__ == '__main__':
-    start()
+function award(source="home") {
+  return new Promise(resolve => {
+    const body = {"awardFlag": true, "source": source};
+    $.post(taskUrl('beanHomeTask', body), (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data.data) {
+              console.log(`领奖成功，获得 ${data.data.beanNum} 个京豆`)
+              message += `领奖成功，获得 ${data.data.beanNum} 个京豆\n`
+            } else {
+              console.log(`领奖失败，${data.errorMessage}`)
+              // message += `领奖失败，${data.errorMessage}\n`
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+function receiveJd2() {
+  var headers = {
+    'Host': 'api.m.jd.com',
+    'content-type': 'application/x-www-form-urlencoded',
+    'accept': '*/*',
+    'user-agent': 'JD4iPhone/167515 (iPhone; iOS 14.2; Scale/3.00)',
+    'accept-language': 'zh-Hans-JP;q=1, en-JP;q=0.9, zh-Hant-TW;q=0.8, ja-JP;q=0.7, en-US;q=0.6',
+    'Cookie': cookie
+  };
+  var dataString = 'body=%7B%7D&build=167576&client=apple&clientVersion=9.4.3&openudid=53f4d9c70c1c81f1c8769d2fe2fef0190a3f60d2&osVersion=14.2&partner=TF&rfs=0000&scope=10&screen=1242%2A2208&sign=19c33b5b9ad4f02c53b6040fc8527119&st=1614701322170&sv=122'
+  var options = {
+    url: 'https://api.m.jd.com/client.action?functionId=sceneInitialize',
+    headers: headers,
+    body: dataString
+  };
+  return new Promise(resolve => {
+    $.post(options, (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (safeGet(data)) {
+            data = JSON.parse(data);
+            if (data['code'] === '0' && data['data']) {
+              console.log(`强制开启新版领京豆成功,获得${data['data']['sceneLevelConfig']['beanNum']}京豆\n`);
+              $.msg($.name, '', `强制开启新版领京豆成功\n获得${data['data']['sceneLevelConfig']['beanNum']}京豆`);
+            } else {
+              console.log(`强制开启新版领京豆结果:${JSON.stringify(data)}\n`)
+            }
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+function taskGetUrl(function_id, body) {
+  return {
+    url: `${JD_API_HOST}client.action?functionId=${function_id}&body=${escape(JSON.stringify(body))}&appid=ld&clientVersion=9.2.0`,
+    headers: {
+      'Cookie': cookie,
+      'Host': 'api.m.jd.com',
+      'Accept': '*/*',
+      'Connection': 'keep-alive',
+      'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
+      'Accept-Language': 'zh-Hans-CN;q=1,en-CN;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Content-Type': "application/x-www-form-urlencoded"
+    }
+  }
+}
+
+function taskBeanUrl(function_id, body = {}) {
+  return {
+    url: `${JD_API_HOST}client.action?functionId=${function_id}&body=${escape(JSON.stringify(body))}&appid=ld&client=apple&clientVersion=10.0.8&uuid=${uuid}&openudid=${uuid}`,
+    headers: {
+      'Cookie': cookie,
+      'Host': 'api.m.jd.com',
+      'Accept': '*/*',
+      'Connection': 'keep-alive',
+      'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
+      'Accept-Language': 'zh-cn',
+      'Accept-Encoding': 'gzip, deflate, br',
+      "Referer": "https://h5.m.jd.com/"
+    }
+  }
+}
+
+function taskUrl(function_id, body) {
+  body["version"] = "9.0.0.1";
+  body["monitor_source"] = "plant_app_plant_index";
+  body["monitor_refer"] = "";
+  return {
+    url: JD_API_HOST,
+    body: `functionId=${function_id}&body=${escape(JSON.stringify(body))}&appid=ld&client=apple&area=5_274_49707_49973&build=167283&clientVersion=9.1.0`,
+    headers: {
+      'Cookie': cookie,
+      'Host': 'api.m.jd.com',
+      'Accept': '*/*',
+      'Connection': 'keep-alive',
+      'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
+      'Accept-Language': 'zh-Hans-CN;q=1,en-CN;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Content-Type': "application/x-www-form-urlencoded"
+    }
+  }
+}
+
+function TotalBean() {
+  return new Promise(async resolve => {
+    const options = {
+      "url": `https://wq.jd.com/user/info/QueryJDUserInfo?sceneval=2`,
+      "headers": {
+        "Accept": "application/json,text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "zh-cn",
+        "Connection": "keep-alive",
+        "Cookie": cookie,
+        "Referer": "https://wqs.jd.com/my/jingdou/my.shtml?sceneval=2",
+        "User-Agent": $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1")
+      }
+    }
+    $.post(options, (err, resp, data) => {
+      try {
+        if (err) {
+          console.log(`${JSON.stringify(err)}`)
+          console.log(`${$.name} API请求失败，请检查网路重试`)
+        } else {
+          if (data) {
+            data = JSON.parse(data);
+            if (data['retcode'] === 13) {
+              $.isLogin = false; //cookie过期
+              return
+            }
+            if (data['retcode'] === 0) {
+              $.nickName = (data['base'] && data['base'].nickname) || $.UserName;
+            } else {
+              $.nickName = $.UserName
+            }
+          } else {
+            console.log(`京东服务器返回空数据`)
+          }
+        }
+      } catch (e) {
+        $.logErr(e, resp)
+      } finally {
+        resolve();
+      }
+    })
+  })
+}
+
+function safeGet(data) {
+  try {
+    if (typeof JSON.parse(data) == "object") {
+      return true;
+    }
+  } catch (e) {
+    console.log(e);
+    console.log(`京东服务器访问数据为空，请检查自身设备网络情况`);
+    return false;
+  }
+}
+function jsonParse(str) {
+  if (typeof str == "string") {
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      console.log(e);
+      $.msg($.name, '', '请勿随意在BoxJs输入框修改内容\n建议通过脚本去获取cookie')
+      return [];
+    }
+  }
+}
+// prettier-ignore
+function Env(t,e){"undefined"!=typeof process&&JSON.stringify(process.env).indexOf("GITHUB")>-1&&process.exit(0);class s{constructor(t){this.env=t}send(t,e="GET"){t="string"==typeof t?{url:t}:t;let s=this.get;return"POST"===e&&(s=this.post),new Promise((e,i)=>{s.call(this,t,(t,s,r)=>{t?i(t):e(s)})})}get(t){return this.send.call(this.env,t)}post(t){return this.send.call(this.env,t,"POST")}}return new class{constructor(t,e){this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.startTime=(new Date).getTime(),Object.assign(this,e),this.log("",`🔔${this.name}, 开始!`)}isNode(){return"undefined"!=typeof module&&!!module.exports}isQuanX(){return"undefined"!=typeof $task}isSurge(){return"undefined"!=typeof $httpClient&&"undefined"==typeof $loon}isLoon(){return"undefined"!=typeof $loon}toObj(t,e=null){try{return JSON.parse(t)}catch{return e}}toStr(t,e=null){try{return JSON.stringify(t)}catch{return e}}getjson(t,e){let s=e;const i=this.getdata(t);if(i)try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise(e=>{this.get({url:t},(t,s,i)=>e(i))})}runScript(t,e){return new Promise(s=>{let i=this.getdata("@chavy_boxjs_userCfgs.httpapi");i=i?i.replace(/\n/g,"").trim():i;let r=this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");r=r?1*r:20,r=e&&e.timeout?e.timeout:r;const[o,h]=i.split("@"),n={url:`http://${h}/v1/scripting/evaluate`,body:{script_text:t,mock_type:"cron",timeout:r},headers:{"X-Key":o,Accept:"*/*"}};this.post(n,(t,e,i)=>s(i))}).catch(t=>this.logErr(t))}loaddata(){if(!this.isNode())return{};{this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e);if(!s&&!i)return{};{const i=s?t:e;try{return JSON.parse(this.fs.readFileSync(i))}catch(t){return{}}}}}writedata(){if(this.isNode()){this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e),r=JSON.stringify(this.data);s?this.fs.writeFileSync(t,r):i?this.fs.writeFileSync(e,r):this.fs.writeFileSync(t,r)}}lodash_get(t,e,s){const i=e.replace(/\[(\d+)\]/g,".$1").split(".");let r=t;for(const t of i)if(r=Object(r)[t],void 0===r)return s;return r}lodash_set(t,e,s){return Object(t)!==t?t:(Array.isArray(e)||(e=e.toString().match(/[^.[\]]+/g)||[]),e.slice(0,-1).reduce((t,s,i)=>Object(t[s])===t[s]?t[s]:t[s]=Math.abs(e[i+1])>>0==+e[i+1]?[]:{},t)[e[e.length-1]]=s,t)}getdata(t){let e=this.getval(t);if(/^@/.test(t)){const[,s,i]=/^@(.*?)\.(.*?)$/.exec(t),r=s?this.getval(s):"";if(r)try{const t=JSON.parse(r);e=t?this.lodash_get(t,i,""):e}catch(t){e=""}}return e}setdata(t,e){let s=!1;if(/^@/.test(e)){const[,i,r]=/^@(.*?)\.(.*?)$/.exec(e),o=this.getval(i),h=i?"null"===o?null:o||"{}":"{}";try{const e=JSON.parse(h);this.lodash_set(e,r,t),s=this.setval(JSON.stringify(e),i)}catch(e){const o={};this.lodash_set(o,r,t),s=this.setval(JSON.stringify(o),i)}}else s=this.setval(t,e);return s}getval(t){return this.isSurge()||this.isLoon()?$persistentStore.read(t):this.isQuanX()?$prefs.valueForKey(t):this.isNode()?(this.data=this.loaddata(),this.data[t]):this.data&&this.data[t]||null}setval(t,e){return this.isSurge()||this.isLoon()?$persistentStore.write(t,e):this.isQuanX()?$prefs.setValueForKey(t,e):this.isNode()?(this.data=this.loaddata(),this.data[e]=t,this.writedata(),!0):this.data&&this.data[e]||null}initGotEnv(t){this.got=this.got?this.got:require("got"),this.cktough=this.cktough?this.cktough:require("tough-cookie"),this.ckjar=this.ckjar?this.ckjar:new this.cktough.CookieJar,t&&(t.headers=t.headers?t.headers:{},void 0===t.headers.Cookie&&void 0===t.cookieJar&&(t.cookieJar=this.ckjar))}get(t,e=(()=>{})){t.headers&&(delete t.headers["Content-Type"],delete t.headers["Content-Length"]),this.isSurge()||this.isLoon()?(this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.get(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)})):this.isQuanX()?(this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t))):this.isNode()&&(this.initGotEnv(t),this.got(t).on("redirect",(t,e)=>{try{if(t.headers["set-cookie"]){const s=t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();s&&this.ckjar.setCookieSync(s,null),e.cookieJar=this.ckjar}}catch(t){this.logErr(t)}}).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)}))}post(t,e=(()=>{})){if(t.body&&t.headers&&!t.headers["Content-Type"]&&(t.headers["Content-Type"]="application/x-www-form-urlencoded"),t.headers&&delete t.headers["Content-Length"],this.isSurge()||this.isLoon())this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.post(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)});else if(this.isQuanX())t.method="POST",this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t));else if(this.isNode()){this.initGotEnv(t);const{url:s,...i}=t;this.got.post(s,i).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)})}}time(t,e=null){const s=e?new Date(e):new Date;let i={"M+":s.getMonth()+1,"d+":s.getDate(),"H+":s.getHours(),"m+":s.getMinutes(),"s+":s.getSeconds(),"q+":Math.floor((s.getMonth()+3)/3),S:s.getMilliseconds()};/(y+)/.test(t)&&(t=t.replace(RegExp.$1,(s.getFullYear()+"").substr(4-RegExp.$1.length)));for(let e in i)new RegExp("("+e+")").test(t)&&(t=t.replace(RegExp.$1,1==RegExp.$1.length?i[e]:("00"+i[e]).substr((""+i[e]).length)));return t}msg(e=t,s="",i="",r){const o=t=>{if(!t)return t;if("string"==typeof t)return this.isLoon()?t:this.isQuanX()?{"open-url":t}:this.isSurge()?{url:t}:void 0;if("object"==typeof t){if(this.isLoon()){let e=t.openUrl||t.url||t["open-url"],s=t.mediaUrl||t["media-url"];return{openUrl:e,mediaUrl:s}}if(this.isQuanX()){let e=t["open-url"]||t.url||t.openUrl,s=t["media-url"]||t.mediaUrl;return{"open-url":e,"media-url":s}}if(this.isSurge()){let e=t.url||t.openUrl||t["open-url"];return{url:e}}}};if(this.isMute||(this.isSurge()||this.isLoon()?$notification.post(e,s,i,o(r)):this.isQuanX()&&$notify(e,s,i,o(r))),!this.isMuteLog){let t=["","==============📣系统通知📣=============="];t.push(e),s&&t.push(s),i&&t.push(i),console.log(t.join("\n")),this.logs=this.logs.concat(t)}}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.join(this.logSeparator))}logErr(t,e){const s=!this.isSurge()&&!this.isQuanX()&&!this.isLoon();s?this.log("",`❗️${this.name}, 错误!`,t.stack):this.log("",`❗️${this.name}, 错误!`,t)}wait(t){return new Promise(e=>setTimeout(e,t))}done(t={}){const e=(new Date).getTime(),s=(e-this.startTime)/1e3;this.log("",`🔔${this.name}, 结束! 🕛 ${s} 秒`),this.log(),(this.isSurge()||this.isQuanX()||this.isLoon())&&$done(t)}}(t,e)}

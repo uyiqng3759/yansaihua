@@ -1,43 +1,21 @@
 /*
-https://lzkj-isv.isvjcloud.com/wxgame/activity/8530275?activityId=e5cff304b4b545a98ba6130ceb4027d2
+https://lzkj-isv.isvjcloud.com/wxgame/activity/8530275?activityId=
 */
 const $ = new Env('加购物车抽奖');
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 const notify = $.isNode() ? require('./sendNotify') : '';
 let cookiesArr = [], cookie = '', message = '';
 let activityIdList = [
-
-"531f465727e74b5292ab7e4b84c4b810",
-"e12730cdc2e24b73a7de2d38fcd45590",
-"dbbac02679fb4f90a9eb0f4c53ce26a5",
-"495a3c2d219a4ea08e7aabdcf2ecb578",
-"223af331a66a4408a959a04145355cc6",
-"af10fbd3ec0c4a1088de23839b74efb0",
-"ce4f4cea125b41468f71803e73063278",
-"7439e98244e44a38a67e769d6e31913f",
-"89f9ba28548a48b7bd339f3c20469bd1",
-"4e25bf1616894908a22601205714e28f",
-"a4cea15e12e74b7c8fc96adc17725772",
-"420fe344948c4912affa5d4c94e84a95",
-"5b3a236b5c6e4d998adfdafa5ef5c897",
-"9cf1a7bbdd6d4a67bce2b16166e05a48",
-"b75b394e3066452d9f1d57175567b173",
-"0964ecf802fa4578a46b35ac9273e158",
-"6a52f75bb96c41f7ac979ef5cc41ced7",
-"6e3c5d6c23e745248c8bf8ec7b57d44b",
-"8d89c8d64d1d4ba884a3706b23938bca",
-"5dc9fcc62c724599a9d76f8e33f753c1",
-"6ff596c8cbfe448bbc589e4e72be01ba",
-"e7667c23889249a987009202c48cfe23",
-"b09c1c257b204a98bf9e29c5c1b5d164",
-"f403d7ae443048f9bffa8d85e4a2ad0a",
-"88afce9eb671465ca050b431b004764f",
-"b09c109bba114bbfa853c72179d34474",
-"321d4e2d9c9a4765852280f52e45b5a1",
-"1367f751ec5b40fabc74d29feb766f16",
-"09ae40074f9b4c378a1f8d2a51cef279",
-"f6035e5788b2407c8cfe80a95de14bff",
-"1de347bdc3e445ceb20258d9646ee70f",
+    '4d22b316e58146b4963efcfd3f8435c5',
+    '8b43007f031941b28c60f9a189a162e4',
+    '784dabd0ebef415cb3e6b78c56817a1a',
+    'b2fc22cf0de3441b863bfe49011cfd72',
+    'c3824b8abf17456c9c8283ff2c5a272c',
+    '486b29c49dc34018b10b452348b7e929',
+    '1ac66ba5b742490bb904b4ad690ef9fa',
+    'b18bec7121da406c9ce479ab17f5b51e',
+    'feb560aee629495da986cea82a6391b9',
+    
 ]
 let lz_cookie = {}
 
@@ -68,6 +46,7 @@ $.keywordsNum = 0;
         $.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/bean/signIndex.action', { "open-url": "https://bean.m.jd.com/bean/signIndex.action" });
         return;
     }
+    // activityIdList = await getActivityIdList('https://raw.githubusercontent.com/FKPYW/dongge/master/code/wxCollectionActivity.json')
     for(let a in activityIdList){
         activityId = activityIdList[a];
         console.log("开起第 "+ a +" 个活动，活动id："+activityId)
@@ -98,7 +77,7 @@ $.keywordsNum = 0;
                 $.authorCode = authorCodeList[random(0, authorCodeList.length)]
                 $.authorNum = `${random(1000000, 9999999)}`
                 $.activityId = activityId
-                $.activityUrl = `https://lzkj-isv.isvjcloud.com//activity2/${$.authorNum}?activityId=${$.activityId}&shareUuid=${encodeURIComponent($.authorCode)}&adsource=null&sid=&un_area=`
+                $.activityUrl = `https://lzkj-isv.isvjcloud.com/wxCollectionActivity/activity2/${$.authorNum}?activityId=${$.activityId}&shareUuid=${encodeURIComponent($.authorCode)}&adsource=null&sid=&un_area=`
                 $.drawInfoName = false
                 $.getPrize = null;
                 await addCart();
@@ -489,6 +468,28 @@ function getSubstr(str, leftStr, rightStr){
     let right = str.indexOf(rightStr, left);
     if(left < 0 || right < left) return '';
     return str.substring(left + leftStr.length, right);
+}
+function getActivityIdList(url) {
+    return new Promise(resolve => {
+        const options = {
+            url: `${url}?${new Date()}`, "timeout": 10000, headers: {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1 Edg/87.0.4280.88"
+            }
+        };
+        $.get(options, async (err, resp, data) => {
+            try {
+                if (err) {
+                    $.log(err)
+                } else {
+                if (data) data = JSON.parse(data)
+                }
+            } catch (e) {
+                $.logErr(e, resp)
+            } finally {
+                resolve(data);
+            }
+        })
+    })
 }
 function getUUID(format = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', UpperCase = 0) {
     return format.replace(/[xy]/g, function (c) {

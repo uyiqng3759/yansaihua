@@ -1,12 +1,12 @@
 /*
-奢宠会员  瓜分万元大奖
-11.23 - 11.30
-https://lzdz1-isv.isvjcloud.com/dingzhi/dz/openCard/activity/8743676?activityId=dzkmladn20211123A&shareUuid=9ab24fa3e2ba4f4aa15ff4f18afa1b51
+全球大牌盛典   黑五狂欢购
+11.25 - 12.1
+https://lzdz1-isv.isvjcloud.com/dingzhi/dz/openCard/activity/2858314?activityId=dzkwdlt20211125A&shareUuid=fe7c806ba1ce4bf09d52bf50df511f98
 
 默认执行脚本。如果需要不执行
 环境变量 NO_RUSH=false
 */
-const $ = new Env("奢宠会员  瓜分万元大奖");
+const $ = new Env("全球大牌盛典   黑五狂欢购");
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 const notify = $.isNode() ? require('./sendNotify') : '';
 let cookiesArr = [], cookie = '', message = '';
@@ -36,10 +36,10 @@ if (process.env.NO_RUSH && process.env.NO_RUSH != "") {
         return;
     }
     
-    authorCodeList = await getAuthorCodeList('https://gitee.com/fatelight/code/raw/master/lzdz1_dapai.json')
-    if($.getAuthorCodeListerr === true){
+    authorCodeList = await getAuthorCodeList('https://gitee.com/fatelight/code/raw/master/lzdz1_dapai2.json')
+    if($.getAuthorCodeListerr === false){
         authorCodeList = [
-            '9ab24fa3e2ba4f4aa15ff4f18afa1b51',
+            'fe7c806ba1ce4bf09d52bf50df511f98',
         ]
     }
 
@@ -68,8 +68,8 @@ if (process.env.NO_RUSH && process.env.NO_RUSH != "") {
             $.authorCode = ownCode ? ownCode : authorCodeList[random(0, authorCodeList.length)]
             $.authorNum = `${random(1000000, 9999999)}`
             $.randomCode = random(1000000, 9999999)
-            $.activityId = 'dzkmladn20211123A'
-            $.activityShopId = '1000004123'
+            $.activityId = 'dzkwdlt20211125A'
+            $.activityShopId = '1000377493'
             $.activityUrl = `https://lzdz1-isv.isvjd.com/dingzhi/dz/openCard/activity/${$.authorNum}?activityId=${$.activityId}&shareUuid=${encodeURIComponent($.authorCode)}&adsource=null&shareuserid4minipg=null&shopid=${$.activityShopId}&lng=00.000000&lat=00.000000&sid=&un_area=`
             if (isRush) {
                 console.log("未检测到不执行环境变量，执行任务")

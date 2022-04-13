@@ -1,37 +1,64 @@
 /*
 愤怒的锦鲤
-更新时间：2021-7-11
+更新时间：2022-04-13
 备注：高速并发请求，专治偷助力。在kois环境变量中填入需要助力的pt_pin，有多个请用@符号连接
-
-风之凌殇 魔改版：
-2021.11.27 修复不能正常先满足第一个账号的问题，并添加车头和公平模式
-2021.11.29 增加自动开红包的功能
-
+接入了代理 https://www.xiequ.cn/ 可以去嫖携趣的 每日1000免费ip 选择1个ip txt文本返回即可
+作者：LingFeng魔改版
 改用以下变量
 #雨露均沾，若配置，则车头外的ck随机顺序，这样可以等概率的随到前面来
 export  KOI_FAIR_MODE="true"
-## 设置1个车头，如果有更多个车头，就写对应数目。仅当车头互助满，才会尝试后面的。
-export KOI_CHETOU_NUMBER="1"
-
-TG学习交流群：https://t.me/cdles
-5 0 * * * https://raw.githubusercontent.com/cdle/jd_study/main/jd_angryKoi.js
-*/
-const $ = new Env("愤怒的锦鲤")
+#其他变量
+export kois ="pt_pin@pt_pin@pt_pin" 指定车头pin
+export PROXY_URL ="" ip代理api
+export gua_cleancart_PandaToken = ''
+export Rabbit_Url =""
+脚本兼容: QuantumultX, Surge,Loon, JSBox, Node.js
+=================================Quantumultx=========================
+[task_local]
+#愤怒的锦鲤
+30 0,8 * * * https://raw.githubusercontent.com/LingFeng0918/LF_JD/main/jd_angryKoi_all.js, tag=愤怒的锦鲤, img-url=https://raw.githubusercontent.com/Orz-3/mini/master/Color/jd.png, enabled=true
+=================================Loon===================================
+[Script]
+cron "30 0,8  * * *" script-path=https://raw.githubusercontent.com/LingFeng0918/LF_JD/main/jd_angryKoi_all.js,tag=愤怒的锦鲤
+===================================Surge================================
+愤怒的锦鲤 = type=cron,cronexp="30 0,8  * * *",wake-system=1,timeout=3600,script-path=https://raw.githubusercontent.com/LingFeng0918/LF_JD/main/jd_angryKoi_all.js
+====================================小火箭=============================
+愤怒的锦鲤 = type=cron,script-path=https://raw.githubusercontent.com/LingFeng0918/LF_JD/main/jd_angryKoi_all.js, cronexpr="30 0,8  * * *", timeout=3600, enable=true
+ */
+const $ = new Env("愤怒的锦鲤多接口版 - LingFeng ")
+require("global-agent/bootstrap");
 const JD_API_HOST = 'https://api.m.jd.com/client.action';
-const ua = `jdltapp;iPhone;3.1.0;${Math.ceil(Math.random() * 4 + 10)}.${Math.ceil(Math.random() * 4)};${randomString(40)}`
+//const ua = `jdltapp;iPhone;3.1.0;${Math.ceil(Math.random() * 4 + 10)}.${Math.ceil(Math.random() * 4)};${randomString(40)}`
+const ua = "Mozilla/5.0 (Linux; U; Android 8.0.0; zh-cn; Mi Note 2 Build/OPR1.170623.032) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/61.0.3163.128 Mobile Safari/537.36 XiaoMi/MiuiBrowser/10.1.1"
 let fair_mode = process.env.KOI_FAIR_MODE == "true" ? true : false
 let chetou_number = process.env.KOI_CHETOU_NUMBER ? Number(process.env.KOI_CHETOU_NUMBER) : 0
 var kois = process.env.kois ?? ""
+let proxyUrl = process.env.PROXY_URL ?? ""; // 代理的api地址
+let proxy = "";
+let RabbitUrl = process.env.Rabbit_Url ?? ""; // logurl
+let jdPandaToken = '';
+jdPandaToken = $.isNode() ? (process.env.gua_cleancart_PandaToken ? process.env.gua_cleancart_PandaToken : `${jdPandaToken}`) : ($.getdata('gua_cleancart_PandaToken') ? $.getdata('gua_cleancart_PandaToken') : `${jdPandaToken}`);
+let nums = 0;
 let cookiesArr = []
+let scriptsLogArr = []
 var tools = []
+if (proxyUrl){
+    let urlRex =
+        /[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+\.?/g;
+    global.GLOBAL_AGENT.NO_PROXY = `${urlRex.exec(proxyUrl)[0]},log.catttt.com`;
+}
+if (!jdPandaToken && !RabbitUrl){
+    console.log(`请填写Panda获取的Token,变量是gua_cleancart_PandaToke 或者填写Rabbit获取的logurl，变量是Rabbit_Url`)
+    return;
+}
+var logs;
 
 let notify, allMessage = '';
 
 !(async () => {
     await requireConfig()
-
+    console.log(`\n 示例: logs 值 "random":"75831714","log":"1646396568418~1jD94......太长省略...Qwt9i"\n`)
     console.log(`当前配置的车头数目：${chetou_number}，是否开启公平模式：${fair_mode}`)
-
     console.log("开始获取用于助力的账号列表")
     for (let i in cookiesArr) {
         // 将用于助力的账号加入列表
@@ -77,10 +104,25 @@ let notify, allMessage = '';
     let helpIndex = 0
     while (helpIndex < cookiesArr.length && tools.length > 0 && remainingTryCount > 0) {
         let cookieIndex = cookieIndexOrder[helpIndex]
-
         try {
+            if(proxyUrl){
+                await getProxy();
+                console.log(proxy);
+            }
             // 按需获取账号的锦鲤信息
-            let help = await getHelpInfoForCk(cookieIndex, cookiesArr[cookieIndex])
+            let help;
+
+            let cnt=0;
+            do {
+                try {
+                    help = await getHelpInfoForCk(cookieIndex, cookiesArr[cookieIndex])
+                    cnt=10;
+                } catch (error) {
+                    // 额外捕获异常
+                    console.error(`第${cnt}次请求第${cookieIndex} 个账号信息出现错误，错误为${error}，捕获该异常，3次后进行下一个账号`)
+                    cnt++;
+                }
+            }while (cnt<3);
             if (help) {
                 while (tools.length > 0 && remainingTryCount > 0) {
                     console.info('')
@@ -102,8 +144,17 @@ let notify, allMessage = '';
                     }
 
                     console.debug(`尝试用 ${tool.id} 账号助力 ${help.id} 账号，用于互助的账号剩余 ${tools.length}`)
-
-                    await helpThisUser(help, tool)
+                    let helpNum=0;
+                    do {
+                        try {
+                            await helpThisUser(help, tool)
+                            helpNum=10;
+                        } catch (error) {
+                            // 额外捕获异常
+                            console.error(`尝试用 ${tool.id} 账号助力 ${help.id} 出现错误，错误为${error}，捕获该异常，跳过此账号继续执行助力~`)
+                            helpNum++;
+                        }
+                    }while (helpNum<5);
                     if (!tool.assisted) {
                         // 如果没有助力成功，则放入互助列表头部
                         tools.unshift(tool)
@@ -116,7 +167,11 @@ let notify, allMessage = '';
                     remainingTryCount -= 1
 
                     // 等待一会，避免频繁请求
-                    await $.wait(500)
+                    if(proxyUrl){
+                        await $.wait(1000)
+                    }else{
+                        await $.wait(45000)
+                        }
                 }
             } else {
                 // 获取失败，跳过
@@ -168,19 +223,23 @@ function shuffle(array) {
 
 async function getHelpInfoForCk(cookieIndex, cookie) {
     console.log(`开始请求第 ${cookieIndex} 个账号的信息`)
-
+    logs = await getJinliLogs()
+    if(proxyUrl){
+        if (nums % 8 == 0) {
+            await getProxy();
+            global.GLOBAL_AGENT.HTTP_PROXY = "http://" + proxy;
+        }
+        nums++;
+    }
+    let random = logs["random"].toString(),log =logs["log"].toString()
+    //let random = decodeURIComponent(logs.match(/"random":"(\d+)"/)[1]),log = decodeURIComponent(logs.match(/"log":"(.*)"/)[1])
     let data;
-
     // 开启红包
     data = await with_retry("开启红包活动", async () => {
-        var num = "";
-        for (var g = 0; g < 6; g++) {
-            num += Math.floor(Math.random() * 10);
-        }
         return await requestApi('h5launch', cookie, {
             "followShop": 0,
-            "random": 13700411,
-            "log": "1646775426398~1BQe74ME4VSMDFwUXJBaTAyMQ==.QWdGd15HZEZzXURhQD8cEWMjeFwbIEB3F0F9RG1fXGAMcxdBLww=.508fdb13~6,1~4CB99411FCDB69CD2F4945A27616D8CF28DDDFF1~1nk7p7b~C~SRpFWBIJaW8UEExfWBIJaRBcBxUHcBx0dR4JanMdVBxHEB4aVg8cA3UfdXUUAAhwGVEfRhAUEFwAGAZ1HnV/HgoDDRxGHkYabxQTUkJdEAgJHhpCRhIJEAMOBg4GAgUHAAEPBw8EAwkHEB4aRV1VFwoRRkZMRkxXQFYRHhBPV1kTDxJVVEZMRkxEVBIfEEJcXBoLbgQfBAoKHgEdBAAfAx4NbxQTX1oRCAMUEFtCFwoRBQFcVgBTB1JQAlEMUQ5XBlMLBVEBUQAJAlQDCldcUwATGRJdQhACEFFhXV9dVxAUEEwTDwEFBgQPBQ0FBwYACwoUEFJaFwoRUFcKVloHU1RWVgNZAAgIDQUDVgcBA1tTAQkKAwAKU1tUUFZXBVcABRodF1ZDUBACEBodF15FEAgac0hBWVUTcV1VQk1FUEIfEntWURYTGRJdU0QaCBoAAwcKBAoaHhpCVkIRCGkBAA4dAQILbx4aQFcTD2sRW2JQXVZUBAMfBhAUEFF+ZhIfEAMMHAoTGRICAhwMHAgTGRICBAUBBAATGRJRVwBcUA5XUVVXA1MKAgEJAABXBwsJUVoFDAkCAABZUV1UU1QEVwoPEBQTVBJuHhBRXVkTDxJVVFReVF5FQRIfEFNSEAITQBIfEFFREAITQgMdABwMEBQTVlZsRBACEAgDFxwRUFYaCBpDVF5XXV8FAwsGBQAHAwMaHhpcXxIJaQAUAhQBaBwRUF5XVRoLFwEFBgQPBQ0FBwMLAwRGA0lZDFoLBnV0Z398cXZeYABAeGFbdEh9cw8FHG4Cc2lVA2RqUVRZAGUCVgNgSFtjdGF9UXBAdF1SWUNnenB6QH5cY3lgXGtrVEBJbX9hAnF+WltGdEgKYHp5Y1JSZgR/dEoIX34AbFp0Y3BqfkJ4QHdiBl18dEtVc1wLfXpBf2ppQl9QaFlUfHRJQnRxWHdofkIBcGZEawB5dHpke1diV3trQQFhd3VYZF9PW3FgYFN9Y3dMZ2lWXXZnc0V1WAxdVnNme3tPaA5kWXVGfWZ9Z3ZyeGB5A0FrVnsJfXVEe2B0YE9GeEp5VmJCVXN9UnlAdUVMHXRZAXhwSFkFHFsIBlZVUQoPTE4dBE5NTHBGZnpnZGhbd3h+ZGl0cmFmZHpAf39jWQl2alpuYn5nRXp0A0VudGoJY2JLd3x+Y2lhd1d2YHptUXBwT1xxdGRTZHpGUlJgWmR+d2kBZ3VhQWRgWW1ncWJ2c2FuYG5nUlNlZkpuZX9Ge3V1Z10FTAlXVEYAW0EaHhpcRlcRCBAaTw==~0kertjo",
+            "random": random,
+            "log": log,
             "sceneid": "JLHBhPageh5"
         });
     })
@@ -237,7 +296,7 @@ async function getHelpInfoForCk(cookieIndex, cookie) {
         case 20002://已达拆红包数量限制
             console.debug("已领取今天全部红包，将跳过")
             break;
-        case 10002://活动正在进行，火爆号
+        case 10003://活动正在进行，火爆号
             console.debug(`h5activityIndex 被风控，变成黑号了, data=${JSON.stringify(data)}`)
             break;
         case 20001://红包活动正在进行，可拆
@@ -246,7 +305,7 @@ async function getHelpInfoForCk(cookieIndex, cookie) {
                 redPacketId: data.data.result.redpacketInfo.id,
                 assist_full: false,
                 id: cookieIndex,
-                cookie: cookie,
+                // cookie: cookie,
                 helpCount: 0
             }
         default:
@@ -276,7 +335,7 @@ async function appendRewardInfoToNotify(cookieIndex, cookie) {
             await openRedPacket(cookie)
 
             // 等待一会，避免请求过快
-            await $.wait(1000)
+            await $.wait(6000)
         }
 
         console.info(`领取完毕，重新查询最新锦鲤红包信息`)
@@ -359,14 +418,13 @@ async function with_retry(ctx = "", callback_func, max_retry_times = 3, retry_in
 }
 
 async function openRedPacket(cookie) {
-    var num = "";
-    for (var g = 0; g < 6; g++) {
-        num += Math.floor(Math.random() * 10);
-    }
+    logs = await getJinliLogs()
+    //let random = decodeURIComponent(logs.match(/"random":"(\d+)"/)[1]),log = decodeURIComponent(logs.match(/"log":"(.*)"/)[1])
+   let random = logs["random"].toString(),log =logs["log"].toString()
     // https://api.m.jd.com/api?appid=jinlihongbao&functionId=h5receiveRedpacketAll&loginType=2&client=jinlihongbao&t=1638189287348&clientVersion=10.2.4&osVersion=-1
     let resp = await requestApi('h5receiveRedpacketAll', cookie, {
-        "random": 13700411,
-        "log": "1646775426398~1BQe74ME4VSMDFwUXJBaTAyMQ==.QWdGd15HZEZzXURhQD8cEWMjeFwbIEB3F0F9RG1fXGAMcxdBLww=.508fdb13~6,1~4CB99411FCDB69CD2F4945A27616D8CF28DDDFF1~1nk7p7b~C~SRpFWBIJaW8UEExfWBIJaRBcBxUHcBx0dR4JanMdVBxHEB4aVg8cA3UfdXUUAAhwGVEfRhAUEFwAGAZ1HnV/HgoDDRxGHkYabxQTUkJdEAgJHhpCRhIJEAMOBg4GAgUHAAEPBw8EAwkHEB4aRV1VFwoRRkZMRkxXQFYRHhBPV1kTDxJVVEZMRkxEVBIfEEJcXBoLbgQfBAoKHgEdBAAfAx4NbxQTX1oRCAMUEFtCFwoRBQFcVgBTB1JQAlEMUQ5XBlMLBVEBUQAJAlQDCldcUwATGRJdQhACEFFhXV9dVxAUEEwTDwEFBgQPBQ0FBwYACwoUEFJaFwoRUFcKVloHU1RWVgNZAAgIDQUDVgcBA1tTAQkKAwAKU1tUUFZXBVcABRodF1ZDUBACEBodF15FEAgac0hBWVUTcV1VQk1FUEIfEntWURYTGRJdU0QaCBoAAwcKBAoaHhpCVkIRCGkBAA4dAQILbx4aQFcTD2sRW2JQXVZUBAMfBhAUEFF+ZhIfEAMMHAoTGRICAhwMHAgTGRICBAUBBAATGRJRVwBcUA5XUVVXA1MKAgEJAABXBwsJUVoFDAkCAABZUV1UU1QEVwoPEBQTVBJuHhBRXVkTDxJVVFReVF5FQRIfEFNSEAITQBIfEFFREAITQgMdABwMEBQTVlZsRBACEAgDFxwRUFYaCBpDVF5XXV8FAwsGBQAHAwMaHhpcXxIJaQAUAhQBaBwRUF5XVRoLFwEFBgQPBQ0FBwMLAwRGA0lZDFoLBnV0Z398cXZeYABAeGFbdEh9cw8FHG4Cc2lVA2RqUVRZAGUCVgNgSFtjdGF9UXBAdF1SWUNnenB6QH5cY3lgXGtrVEBJbX9hAnF+WltGdEgKYHp5Y1JSZgR/dEoIX34AbFp0Y3BqfkJ4QHdiBl18dEtVc1wLfXpBf2ppQl9QaFlUfHRJQnRxWHdofkIBcGZEawB5dHpke1diV3trQQFhd3VYZF9PW3FgYFN9Y3dMZ2lWXXZnc0V1WAxdVnNme3tPaA5kWXVGfWZ9Z3ZyeGB5A0FrVnsJfXVEe2B0YE9GeEp5VmJCVXN9UnlAdUVMHXRZAXhwSFkFHFsIBlZVUQoPTE4dBE5NTHBGZnpnZGhbd3h+ZGl0cmFmZHpAf39jWQl2alpuYn5nRXp0A0VudGoJY2JLd3x+Y2lhd1d2YHptUXBwT1xxdGRTZHpGUlJgWmR+d2kBZ3VhQWRgWW1ncWJ2c2FuYG5nUlNlZkpuZX9Ge3V1Z10FTAlXVEYAW0EaHhpcRlcRCBAaTw==~0kertjo",
+        "random": random,
+        "log": log,
         "sceneid": "JLHBhPageh5"
     });
     if (resp?.data?.biz_code == 0) {
@@ -377,20 +435,20 @@ async function openRedPacket(cookie) {
 }
 
 async function helpThisUser(help, tool) {
-    // 计算一个用于请求的随机参数
+    logs = await getJinliLogs()
     var num = "";
-    for (var i = 0; i < 6; i++) {
-        num += Math.floor(Math.random() * 10);
+   let random = logs["random"].toString(),log =logs["log"].toString()
+    if (proxyUrl){
+        if (nums % 8 == 0) {
+            await getProxy();
+            console.log(proxy);
+            global.GLOBAL_AGENT.HTTP_PROXY = "http://" + proxy;
+        }
+        nums++;
     }
-
+    body={"redPacketId": help.redPacketId,"followShop": 0,"random": random,"log": log,"sceneid":"JLHBhPageh5"}
     // 实际发起请求
-    await requestApi('jinli_h5assist', tool.cookie, {
-        "redPacketId": help.redPacketId,
-        "followShop": 0,
-        "random": 13700411,
-        "log": "1646775426398~1BQe74ME4VSMDFwUXJBaTAyMQ==.QWdGd15HZEZzXURhQD8cEWMjeFwbIEB3F0F9RG1fXGAMcxdBLww=.508fdb13~6,1~4CB99411FCDB69CD2F4945A27616D8CF28DDDFF1~1nk7p7b~C~SRpFWBIJaW8UEExfWBIJaRBcBxUHcBx0dR4JanMdVBxHEB4aVg8cA3UfdXUUAAhwGVEfRhAUEFwAGAZ1HnV/HgoDDRxGHkYabxQTUkJdEAgJHhpCRhIJEAMOBg4GAgUHAAEPBw8EAwkHEB4aRV1VFwoRRkZMRkxXQFYRHhBPV1kTDxJVVEZMRkxEVBIfEEJcXBoLbgQfBAoKHgEdBAAfAx4NbxQTX1oRCAMUEFtCFwoRBQFcVgBTB1JQAlEMUQ5XBlMLBVEBUQAJAlQDCldcUwATGRJdQhACEFFhXV9dVxAUEEwTDwEFBgQPBQ0FBwYACwoUEFJaFwoRUFcKVloHU1RWVgNZAAgIDQUDVgcBA1tTAQkKAwAKU1tUUFZXBVcABRodF1ZDUBACEBodF15FEAgac0hBWVUTcV1VQk1FUEIfEntWURYTGRJdU0QaCBoAAwcKBAoaHhpCVkIRCGkBAA4dAQILbx4aQFcTD2sRW2JQXVZUBAMfBhAUEFF+ZhIfEAMMHAoTGRICAhwMHAgTGRICBAUBBAATGRJRVwBcUA5XUVVXA1MKAgEJAABXBwsJUVoFDAkCAABZUV1UU1QEVwoPEBQTVBJuHhBRXVkTDxJVVFReVF5FQRIfEFNSEAITQBIfEFFREAITQgMdABwMEBQTVlZsRBACEAgDFxwRUFYaCBpDVF5XXV8FAwsGBQAHAwMaHhpcXxIJaQAUAhQBaBwRUF5XVRoLFwEFBgQPBQ0FBwMLAwRGA0lZDFoLBnV0Z398cXZeYABAeGFbdEh9cw8FHG4Cc2lVA2RqUVRZAGUCVgNgSFtjdGF9UXBAdF1SWUNnenB6QH5cY3lgXGtrVEBJbX9hAnF+WltGdEgKYHp5Y1JSZgR/dEoIX34AbFp0Y3BqfkJ4QHdiBl18dEtVc1wLfXpBf2ppQl9QaFlUfHRJQnRxWHdofkIBcGZEawB5dHpke1diV3trQQFhd3VYZF9PW3FgYFN9Y3dMZ2lWXXZnc0V1WAxdVnNme3tPaA5kWXVGfWZ9Z3ZyeGB5A0FrVnsJfXVEe2B0YE9GeEp5VmJCVXN9UnlAdUVMHXRZAXhwSFkFHFsIBlZVUQoPTE4dBE5NTHBGZnpnZGhbd3h+ZGl0cmFmZHpAf39jWQl2alpuYn5nRXp0A0VudGoJY2JLd3x+Y2lhd1d2YHptUXBwT1xxdGRTZHpGUlJgWmR+d2kBZ3VhQWRgWW1ncWJ2c2FuYG5nUlNlZkpuZX9Ge3V1Z10FTAlXVEYAW0EaHhpcRlcRCBAaTw==~0kertjo",
-        "sceneid": "JLHBhPageh5"
-    }).then(function (data) {
+    await requestApi('jinli_h5assist', tool.cookie, body).then(async function (data) {
         let desc = data?.data?.result?.statusDesc
         if (desc) {
             if (desc.indexOf("助力成功") != -1) {
@@ -409,6 +467,18 @@ async function helpThisUser(help, tool) {
             tool.assisted = true
         }
         console.log(`${tool.id}->${help.id}`, desc)
+        if (!desc) {
+            if(proxyUrl){
+                await getProxy();
+                console.log(proxy);
+            }
+            if(proxyUrl){
+                await $.wait(500);
+            }else {
+                await $.wait(6000);
+            }
+            helpThisUser(help, tool);
+        }
     })
 }
 
@@ -457,7 +527,127 @@ async function requireConfig() {
         resolve()
     })
 }
+function getJinliLogs() {
+    if (jdPandaToken && RabbitUrl){
+           let nums = Math.floor(Math.random() * 9)+1;
+            if (nums<5){
+                console.info('随机从panda接口获取log!')
+                return pandaLogs();
+            }else {
+                console.info('随机从rabbit接口获取log!')
+                return rabbitLogs();
+            }
+    }
+    if(jdPandaToken && !RabbitUrl){
+        console.info('进入panda接口获取log!')
+        return pandaLogs();
+    }
+    if(RabbitUrl && !jdPandaToken){
+        console.info('进入rabbit接口获取log!')
+        return rabbitLogs();
+    }
+    return '';
+}
+function pandaLogs(){
+    var logs = '';
+    return new Promise((resolve) => {
+        let url = {
+            url: "https://api.jds.codes/jd/log",
+            followRedirect: false,
+            headers: {
+                'Accept': '*/*',
+                "accept-encoding": "gzip, deflate, br",
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + jdPandaToken
+            },
+            timeout: 30000
+        }
+        $.get(url, async(err, resp, data) => {
+            try {
+                data = JSON.parse(data);
+                if (data && data.code == 200) {
+                    lnrequesttimes = data.request_times;
+                    console.log("连接Panda服务成功，当前Token使用次数为" + lnrequesttimes);
+                    if (data.data)
+                        logs = data.data || '';
+                    console.info(logs['random']+"----"+logs['log'])
+                    if (logs != '')
+                        resolve(logs);
+                    else
+                        console.log("签名获取失败,可能Token使用次数上限或被封.");
+                } else {
+                    console.log("签名获取失败.");
+                }
 
+            }catch (e) {
+                $.logErr(e, resp);
+            }finally {
+                resolve(logs);
+            }
+        })
+    })
+}
+function rabbitLogs(){
+    var logs = '';
+    return new Promise((resolve) => {
+        let url = {
+            url:`${RabbitUrl}`,
+            followRedirect: false,
+            timeout: 30000
+        }
+        $.get(url, async(err, resp, data) => {
+            try {
+                data = JSON.parse(data);
+                if (data && data.status == 0) {
+                    lnrequesttimes = data.request_times;
+                    logs = {
+                        random: data.random,
+                        log: data.log
+                    }
+                    console.info(logs['random']+"----"+logs['log'])
+                    if (logs != '')
+                        resolve(logs);
+                    else
+                        console.log("log获取失败.");
+                } else {
+                    console.log("log获取失败.");
+                }
+
+            }catch (e) {
+                $.logErr(e, resp);
+            }finally {
+                resolve(logs);
+            }
+        })
+    })
+}
+// 获取代理
+function getProxy() {
+    return new Promise(async (resolve) => {
+        $.get(
+            {
+                url: proxyUrl,
+                timeout: {
+                    request: 5000,
+                },
+            },
+            (err, data) => {
+                if (data) {
+                    try {
+                        let reg =
+                            /((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}:[1-9]\d*/g;
+                        let p = reg.exec(data.body);
+                        proxy = p[0];
+                        global.GLOBAL_AGENT.HTTP_PROXY = "http://" + proxy;
+                    } catch (err) {
+                    } finally {
+                        resolve();
+                    }
+                }
+            }
+        );
+    });
+}
 function randomString(e) {
     e = e || 32;
     let t = "abcdefhijkmnprstwxyz2345678",
@@ -467,383 +657,4 @@ function randomString(e) {
         n += t.charAt(Math.floor(Math.random() * a));
     return n
 }
-
-function Env(t, e) {
-    "undefined" != typeof process && JSON.stringify(process.env).indexOf("GIT_HUB") > -1 && process.exit(0);
-
-    class s {
-        constructor(t) {
-            this.env = t
-        }
-
-        send(t, e = "GET") {
-            t = "string" == typeof t ? {
-                url: t
-            } : t;
-            let s = this.get;
-            return "POST" === e && (s = this.post), new Promise((e, i) => {
-                s.call(this, t, (t, s, r) => {
-                    t ? i(t) : e(s)
-                })
-            })
-        }
-
-        get(t) {
-            return this.send.call(this.env, t)
-        }
-
-        post(t) {
-            return this.send.call(this.env, t, "POST")
-        }
-    }
-
-    return new class {
-        constructor(t, e) {
-            this.name = t, this.http = new s(this), this.data = null, this.dataFile = "box.dat", this.logs = [], this.isMute = !1, this.isNeedRewrite = !1, this.logSeparator = "\n", this.startTime = (new Date).getTime(), Object.assign(this, e), this.log("", `🔔${this.name}, 开始!`)
-        }
-
-        isNode() {
-            return "undefined" != typeof module && !!module.exports
-        }
-
-        isQuanX() {
-            return "undefined" != typeof $task
-        }
-
-        isSurge() {
-            return "undefined" != typeof $httpClient && "undefined" == typeof $loon
-        }
-
-        isLoon() {
-            return "undefined" != typeof $loon
-        }
-
-        toObj(t, e = null) {
-            try {
-                return JSON.parse(t)
-            } catch (e) {
-                return e
-            }
-        }
-
-        toStr(t, e = null) {
-            try {
-                return JSON.stringify(t)
-            } catch (e) {
-                return e
-            }
-        }
-
-        getjson(t, e) {
-            let s = e;
-            const i = this.getdata(t);
-            if (i) try {
-                s = JSON.parse(this.getdata(t))
-            } catch {
-            }
-            return s
-        }
-
-        setjson(t, e) {
-            try {
-                return this.setdata(JSON.stringify(t), e)
-            } catch {
-                return !1
-            }
-        }
-
-        getScript(t) {
-            return new Promise(e => {
-                this.get({
-                    url: t
-                }, (t, s, i) => e(i))
-            })
-        }
-
-        runScript(t, e) {
-            return new Promise(s => {
-                let i = this.getdata("@chavy_boxjs_userCfgs.httpapi");
-                i = i ? i.replace(/\n/g, "").trim() : i;
-                let r = this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");
-                r = r ? 1 * r : 20, r = e && e.timeout ? e.timeout : r;
-                const [o, h] = i.split("@"), n = {
-                    url: `http://${h}/v1/scripting/evaluate`,
-                    body: {
-                        script_text: t,
-                        mock_type: "cron",
-                        timeout: r
-                    },
-                    headers: {
-                        "X-Key": o,
-                        Accept: "*/*"
-                    }
-                };
-                this.post(n, (t, e, i) => s(i))
-            }).catch(t => this.logErr(t))
-        }
-
-        loaddata() {
-            if (!this.isNode()) return {};
-            {
-                this.fs = this.fs ? this.fs : require("fs"), this.path = this.path ? this.path : require("path");
-                const t = this.path.resolve(this.dataFile),
-                    e = this.path.resolve(process.cwd(), this.dataFile),
-                    s = this.fs.existsSync(t),
-                    i = !s && this.fs.existsSync(e);
-                if (!s && !i) return {};
-                {
-                    const i = s ? t : e;
-                    try {
-                        return JSON.parse(this.fs.readFileSync(i))
-                    } catch (t) {
-                        return {}
-                    }
-                }
-            }
-        }
-
-        writedata() {
-            if (this.isNode()) {
-                this.fs = this.fs ? this.fs : require("fs"), this.path = this.path ? this.path : require("path");
-                const t = this.path.resolve(this.dataFile),
-                    e = this.path.resolve(process.cwd(), this.dataFile),
-                    s = this.fs.existsSync(t),
-                    i = !s && this.fs.existsSync(e),
-                    r = JSON.stringify(this.data);
-                s ? this.fs.writeFileSync(t, r) : i ? this.fs.writeFileSync(e, r) : this.fs.writeFileSync(t, r)
-            }
-        }
-
-        lodash_get(t, e, s) {
-            const i = e.replace(/\[(\d+)\]/g, ".$1").split(".");
-            let r = t;
-            for (const t of i)
-                if (r = Object(r)[t], void 0 === r) return s;
-            return r
-        }
-
-        lodash_set(t, e, s) {
-            return Object(t) !== t ? t : (Array.isArray(e) || (e = e.toString().match(/[^.[\]]+/g) || []), e.slice(0, -1).reduce((t, s, i) => Object(t[s]) === t[s] ? t[s] : t[s] = Math.abs(e[i + 1]) >> 0 == +e[i + 1] ? [] : {}, t)[e[e.length - 1]] = s, t)
-        }
-
-        getdata(t) {
-            let e = this.getval(t);
-            if (/^@/.test(t)) {
-                const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : "";
-                if (r) try {
-                    const t = JSON.parse(r);
-                    e = t ? this.lodash_get(t, i, "") : e
-                } catch (t) {
-                    e = ""
-                }
-            }
-            return e
-        }
-
-        setdata(t, e) {
-            let s = !1;
-            if (/^@/.test(e)) {
-                const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i),
-                    h = i ? "null" === o ? null : o || "{}" : "{}";
-                try {
-                    const e = JSON.parse(h);
-                    this.lodash_set(e, r, t), s = this.setval(JSON.stringify(e), i)
-                } catch (e) {
-                    const o = {};
-                    this.lodash_set(o, r, t), s = this.setval(JSON.stringify(o), i)
-                }
-            } else s = this.setval(t, e);
-            return s
-        }
-
-        getval(t) {
-            return this.isSurge() || this.isLoon() ? $persistentStore.read(t) : this.isQuanX() ? $prefs.valueForKey(t) : this.isNode() ? (this.data = this.loaddata(), this.data[t]) : this.data && this.data[t] || null
-        }
-
-        setval(t, e) {
-            return this.isSurge() || this.isLoon() ? $persistentStore.write(t, e) : this.isQuanX() ? $prefs.setValueForKey(t, e) : this.isNode() ? (this.data = this.loaddata(), this.data[e] = t, this.writedata(), !0) : this.data && this.data[e] || null
-        }
-
-        initGotEnv(t) {
-            this.got = this.got ? this.got : require("got"), this.cktough = this.cktough ? this.cktough : require("tough-cookie"), this.ckjar = this.ckjar ? this.ckjar : new this.cktough.CookieJar, t && (t.headers = t.headers ? t.headers : {}, void 0 === t.headers.Cookie && void 0 === t.cookieJar && (t.cookieJar = this.ckjar))
-        }
-
-        get(t, e = (() => {
-        })) {
-            t.headers && (delete t.headers["Content-Type"], delete t.headers["Content-Length"]), this.isSurge() || this.isLoon() ? (this.isSurge() && this.isNeedRewrite && (t.headers = t.headers || {}, Object.assign(t.headers, {
-                "X-Surge-Skip-Scripting": !1
-            })), $httpClient.get(t, (t, s, i) => {
-                !t && s && (s.body = i, s.statusCode = s.status), e(t, s, i)
-            })) : this.isQuanX() ? (this.isNeedRewrite && (t.opts = t.opts || {}, Object.assign(t.opts, {
-                hints: !1
-            })), $task.fetch(t).then(t => {
-                const {
-                    statusCode: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                } = t;
-                e(null, {
-                    status: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                }, o)
-            }, t => e(t))) : this.isNode() && (this.initGotEnv(t), this.got(t).on("redirect", (t, e) => {
-                try {
-                    if (t.headers["set-cookie"]) {
-                        const s = t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();
-                        s && this.ckjar.setCookieSync(s, null), e.cookieJar = this.ckjar
-                    }
-                } catch (t) {
-                    this.logErr(t)
-                }
-            }).then(t => {
-                const {
-                    statusCode: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                } = t;
-                e(null, {
-                    status: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                }, o)
-            }, t => {
-                const {
-                    message: s,
-                    response: i
-                } = t;
-                e(s, i, i && i.body)
-            }))
-        }
-
-        post(t, e = (() => {
-        })) {
-            if (t.body && t.headers && !t.headers["Content-Type"] && (t.headers["Content-Type"] = "application/x-www-form-urlencoded"), t.headers && delete t.headers["Content-Length"], this.isSurge() || this.isLoon()) this.isSurge() && this.isNeedRewrite && (t.headers = t.headers || {}, Object.assign(t.headers, {
-                "X-Surge-Skip-Scripting": !1
-            })), $httpClient.post(t, (t, s, i) => {
-                !t && s && (s.body = i, s.statusCode = s.status), e(t, s, i)
-            });
-            else if (this.isQuanX()) t.method = "POST", this.isNeedRewrite && (t.opts = t.opts || {}, Object.assign(t.opts, {
-                hints: !1
-            })), $task.fetch(t).then(t => {
-                const {
-                    statusCode: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                } = t;
-                e(null, {
-                    status: s,
-                    statusCode: i,
-                    headers: r,
-                    body: o
-                }, o)
-            }, t => e(t));
-            else if (this.isNode()) {
-                this.initGotEnv(t);
-                const {
-                    url: s,
-                    ...i
-                } = t;
-                this.got.post(s, i).then(t => {
-                    const {
-                        statusCode: s,
-                        statusCode: i,
-                        headers: r,
-                        body: o
-                    } = t;
-                    e(null, {
-                        status: s,
-                        statusCode: i,
-                        headers: r,
-                        body: o
-                    }, o)
-                }, t => {
-                    const {
-                        message: s,
-                        response: i
-                    } = t;
-                    e(s, i, i && i.body)
-                })
-            }
-        }
-
-        time(t, e = null) {
-            const s = e ? new Date(e) : new Date;
-            let i = {
-                "M+": s.getMonth() + 1,
-                "d+": s.getDate(),
-                "H+": s.getHours(),
-                "m+": s.getMinutes(),
-                "s+": s.getSeconds(),
-                "q+": Math.floor((s.getMonth() + 3) / 3),
-                S: s.getMilliseconds()
-            };
-            /(y+)/.test(t) && (t = t.replace(RegExp.$1, (s.getFullYear() + "").substr(4 - RegExp.$1.length)));
-            for (let e in i) new RegExp("(" + e + ")").test(t) && (t = t.replace(RegExp.$1, 1 == RegExp.$1.length ? i[e] : ("00" + i[e]).substr(("" + i[e]).length)));
-            return t
-        }
-
-        msg(e = t, s = "", i = "", r) {
-            const o = t => {
-                if (!t) return t;
-                if ("string" == typeof t) return this.isLoon() ? t : this.isQuanX() ? {
-                    "open-url": t
-                } : this.isSurge() ? {
-                    url: t
-                } : void 0;
-                if ("object" == typeof t) {
-                    if (this.isLoon()) {
-                        let e = t.openUrl || t.url || t["open-url"],
-                            s = t.mediaUrl || t["media-url"];
-                        return {
-                            openUrl: e,
-                            mediaUrl: s
-                        }
-                    }
-                    if (this.isQuanX()) {
-                        let e = t["open-url"] || t.url || t.openUrl,
-                            s = t["media-url"] || t.mediaUrl;
-                        return {
-                            "open-url": e,
-                            "media-url": s
-                        }
-                    }
-                    if (this.isSurge()) {
-                        let e = t.url || t.openUrl || t["open-url"];
-                        return {
-                            url: e
-                        }
-                    }
-                }
-            };
-            if (this.isMute || (this.isSurge() || this.isLoon() ? $notification.post(e, s, i, o(r)) : this.isQuanX() && $notify(e, s, i, o(r))), !this.isMuteLog) {
-                let t = ["", "==============📣系统通知📣=============="];
-                t.push(e), s && t.push(s), i && t.push(i), console.log(t.join("\n")), this.logs = this.logs.concat(t)
-            }
-        }
-
-        log(...t) {
-            t.length > 0 && (this.logs = [...this.logs, ...t]), console.log(t.join(this.logSeparator))
-        }
-
-        logErr(t, e) {
-            const s = !this.isSurge() && !this.isQuanX() && !this.isLoon();
-            s ? this.log("", `❗️${this.name}, 错误!`, t.stack) : this.log("", `❗️${this.name}, 错误!`, t)
-        }
-
-        wait(t) {
-            return new Promise(e => setTimeout(e, t))
-        }
-
-        done(t = {}) {
-            const e = (new Date).getTime(),
-                s = (e - this.startTime) / 1e3;
-            this.log("", `🔔${this.name}, 结束! 🕛 ${s} 秒`), this.log(), (this.isSurge() || this.isQuanX() || this.isLoon()) && $done(t)
-        }
-    }(t, e)
-}
+function Env(t,e){"undefined"!=typeof process&&JSON.stringify(process.env).indexOf("GITHUB")>-1&&process.exit(0);class s{constructor(t){this.env=t}send(t,e="GET"){t="string"==typeof t?{url:t}:t;let s=this.get;return"POST"===e&&(s=this.post),new Promise((e,i)=>{s.call(this,t,(t,s,r)=>{t?i(t):e(s)})})}get(t){return this.send.call(this.env,t)}post(t){return this.send.call(this.env,t,"POST")}}return new class{constructor(t,e){this.name=t,this.http=new s(this),this.data=null,this.dataFile="box.dat",this.logs=[],this.isMute=!1,this.isNeedRewrite=!1,this.logSeparator="\n",this.startTime=(new Date).getTime(),Object.assign(this,e),this.log("",`🔔${this.name}, 开始!`)}isNode(){return"undefined"!=typeof module&&!!module.exports}isQuanX(){return"undefined"!=typeof $task}isSurge(){return"undefined"!=typeof $httpClient&&"undefined"==typeof $loon}isLoon(){return"undefined"!=typeof $loon}toObj(t,e=null){try{return JSON.parse(t)}catch{return e}}toStr(t,e=null){try{return JSON.stringify(t)}catch{return e}}getjson(t,e){let s=e;const i=this.getdata(t);if(i)try{s=JSON.parse(this.getdata(t))}catch{}return s}setjson(t,e){try{return this.setdata(JSON.stringify(t),e)}catch{return!1}}getScript(t){return new Promise(e=>{this.get({url:t},(t,s,i)=>e(i))})}runScript(t,e){return new Promise(s=>{let i=this.getdata("@chavy_boxjs_userCfgs.httpapi");i=i?i.replace(/\n/g,"").trim():i;let r=this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");r=r?1*r:20,r=e&&e.timeout?e.timeout:r;const[o,h]=i.split("@"),n={url:`http://${h}/v1/scripting/evaluate`,body:{script_text:t,mock_type:"cron",timeout:r},headers:{"X-Key":o,Accept:"*/*"}};this.post(n,(t,e,i)=>s(i))}).catch(t=>this.logErr(t))}loaddata(){if(!this.isNode())return{};{this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e);if(!s&&!i)return{};{const i=s?t:e;try{return JSON.parse(this.fs.readFileSync(i))}catch(t){return{}}}}}writedata(){if(this.isNode()){this.fs=this.fs?this.fs:require("fs"),this.path=this.path?this.path:require("path");const t=this.path.resolve(this.dataFile),e=this.path.resolve(process.cwd(),this.dataFile),s=this.fs.existsSync(t),i=!s&&this.fs.existsSync(e),r=JSON.stringify(this.data);s?this.fs.writeFileSync(t,r):i?this.fs.writeFileSync(e,r):this.fs.writeFileSync(t,r)}}lodash_get(t,e,s){const i=e.replace(/\[(\d+)\]/g,".$1").split(".");let r=t;for(const t of i)if(r=Object(r)[t],void 0===r)return s;return r}lodash_set(t,e,s){return Object(t)!==t?t:(Array.isArray(e)||(e=e.toString().match(/[^.[\]]+/g)||[]),e.slice(0,-1).reduce((t,s,i)=>Object(t[s])===t[s]?t[s]:t[s]=Math.abs(e[i+1])>>0==+e[i+1]?[]:{},t)[e[e.length-1]]=s,t)}getdata(t){let e=this.getval(t);if(/^@/.test(t)){const[,s,i]=/^@(.*?)\.(.*?)$/.exec(t),r=s?this.getval(s):"";if(r)try{const t=JSON.parse(r);e=t?this.lodash_get(t,i,""):e}catch(t){e=""}}return e}setdata(t,e){let s=!1;if(/^@/.test(e)){const[,i,r]=/^@(.*?)\.(.*?)$/.exec(e),o=this.getval(i),h=i?"null"===o?null:o||"{}":"{}";try{const e=JSON.parse(h);this.lodash_set(e,r,t),s=this.setval(JSON.stringify(e),i)}catch(e){const o={};this.lodash_set(o,r,t),s=this.setval(JSON.stringify(o),i)}}else s=this.setval(t,e);return s}getval(t){return this.isSurge()||this.isLoon()?$persistentStore.read(t):this.isQuanX()?$prefs.valueForKey(t):this.isNode()?(this.data=this.loaddata(),this.data[t]):this.data&&this.data[t]||null}setval(t,e){return this.isSurge()||this.isLoon()?$persistentStore.write(t,e):this.isQuanX()?$prefs.setValueForKey(t,e):this.isNode()?(this.data=this.loaddata(),this.data[e]=t,this.writedata(),!0):this.data&&this.data[e]||null}initGotEnv(t){this.got=this.got?this.got:require("got"),this.cktough=this.cktough?this.cktough:require("tough-cookie"),this.ckjar=this.ckjar?this.ckjar:new this.cktough.CookieJar,t&&(t.headers=t.headers?t.headers:{},void 0===t.headers.Cookie&&void 0===t.cookieJar&&(t.cookieJar=this.ckjar))}get(t,e=(()=>{})){t.headers&&(delete t.headers["Content-Type"],delete t.headers["Content-Length"]),this.isSurge()||this.isLoon()?(this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.get(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)})):this.isQuanX()?(this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t))):this.isNode()&&(this.initGotEnv(t),this.got(t).on("redirect",(t,e)=>{try{if(t.headers["set-cookie"]){const s=t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();s&&this.ckjar.setCookieSync(s,null),e.cookieJar=this.ckjar}}catch(t){this.logErr(t)}}).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)}))}post(t,e=(()=>{})){if(t.body&&t.headers&&!t.headers["Content-Type"]&&(t.headers["Content-Type"]="application/x-www-form-urlencoded"),t.headers&&delete t.headers["Content-Length"],this.isSurge()||this.isLoon())this.isSurge()&&this.isNeedRewrite&&(t.headers=t.headers||{},Object.assign(t.headers,{"X-Surge-Skip-Scripting":!1})),$httpClient.post(t,(t,s,i)=>{!t&&s&&(s.body=i,s.statusCode=s.status),e(t,s,i)});else if(this.isQuanX())t.method="POST",this.isNeedRewrite&&(t.opts=t.opts||{},Object.assign(t.opts,{hints:!1})),$task.fetch(t).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>e(t));else if(this.isNode()){this.initGotEnv(t);const{url:s,...i}=t;this.got.post(s,i).then(t=>{const{statusCode:s,statusCode:i,headers:r,body:o}=t;e(null,{status:s,statusCode:i,headers:r,body:o},o)},t=>{const{message:s,response:i}=t;e(s,i,i&&i.body)})}}time(t,e=null){const s=e?new Date(e):new Date;let i={"M+":s.getMonth()+1,"d+":s.getDate(),"H+":s.getHours(),"m+":s.getMinutes(),"s+":s.getSeconds(),"q+":Math.floor((s.getMonth()+3)/3),S:s.getMilliseconds()};/(y+)/.test(t)&&(t=t.replace(RegExp.$1,(s.getFullYear()+"").substr(4-RegExp.$1.length)));for(let e in i)new RegExp("("+e+")").test(t)&&(t=t.replace(RegExp.$1,1==RegExp.$1.length?i[e]:("00"+i[e]).substr((""+i[e]).length)));return t}msg(e=t,s="",i="",r){const o=t=>{if(!t)return t;if("string"==typeof t)return this.isLoon()?t:this.isQuanX()?{"open-url":t}:this.isSurge()?{url:t}:void 0;if("object"==typeof t){if(this.isLoon()){let e=t.openUrl||t.url||t["open-url"],s=t.mediaUrl||t["media-url"];return{openUrl:e,mediaUrl:s}}if(this.isQuanX()){let e=t["open-url"]||t.url||t.openUrl,s=t["media-url"]||t.mediaUrl;return{"open-url":e,"media-url":s}}if(this.isSurge()){let e=t.url||t.openUrl||t["open-url"];return{url:e}}}};if(this.isMute||(this.isSurge()||this.isLoon()?$notification.post(e,s,i,o(r)):this.isQuanX()&&$notify(e,s,i,o(r))),!this.isMuteLog){let t=["","==============📣系统通知📣=============="];t.push(e),s&&t.push(s),i&&t.push(i),console.log(t.join("\n")),this.logs=this.logs.concat(t)}}log(...t){t.length>0&&(this.logs=[...this.logs,...t]),console.log(t.join(this.logSeparator))}logErr(t,e){const s=!this.isSurge()&&!this.isQuanX()&&!this.isLoon();s?this.log("",`❗️${this.name}, 错误!`,t.stack):this.log("",`❗️${this.name}, 错误!`,t)}wait(t){return new Promise(e=>setTimeout(e,t))}done(t={}){const e=(new Date).getTime(),s=(e-this.startTime)/1e3;this.log("",`🔔${this.name}, 结束! 🕛 ${s} 秒`),this.log(),(this.isSurge()||this.isQuanX()||this.isLoon())&&$done(t)}}(t,e)}

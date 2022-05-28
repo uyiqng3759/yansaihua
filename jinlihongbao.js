@@ -23,7 +23,7 @@ const JD_API_HOST = 'https://api.m.jd.com';
 const ua = `jdapp;iPhone;11.0.2;;;M/5.0;appBuild/168095;jdSupportDarkMode/0;ef/1;ep/%7B%22ciphertype%22%3A5%2C%22cipher%22%3A%7B%22ud%22%3A%22CtUzC2CmZtKnDwU5YzDrCJrrDzcnD2HsDwO5CtuzEJOzZJDsDWS0DK%3D%3D%22%2C%22sv%22%3A%22CJUkDG%3D%3D%22%2C%22iad%22%3A%22%22%7D%2C%22ts%22%3A1653702316%2C%22hdid%22%3A%22JM9F1ywUPwflvMIpYPok0tt5k9kW4ArJEU3lfLhxBqw%3D%22%2C%22version%22%3A%221.0.3%22%2C%22appname%22%3A%22com.360buy.jdmobile%22%2C%22ridx%22%3A-1%7D;Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1;`
 let fair_mode = process.env.KOI_FAIR_MODE == "true" ? true : false
 let chetou_number = process.env.KOI_CHETOU_NUMBER ? Number(process.env.KOI_CHETOU_NUMBER) : 0
-let cookies = []
+let cookiesArr = []
 let tools = []
 let notify, allMessage = '';
 
@@ -33,9 +33,9 @@ let notify, allMessage = '';
   console.log(`当前配置的车头数目：${chetou_number}，是否开启公平模式：${fair_mode}`)
 
   console.log("开始获取用于助力的账号列表")
-  for (let i in cookies) {
+  for (let i in cookiesArr) {
     // 将用于助力的账号加入列表
-    tools.push({id: i, assisted: false, cookie: cookies[i]})
+    tools.push({id: i, assisted: false, cookie: cookiesArr[i]})
   }
   console.log(`用于助力的数目为 ${tools.length}`)
   allMessage += `用于助力的数目为 ${tools.length}\n`
@@ -56,7 +56,7 @@ let notify, allMessage = '';
     cookieIndexOrder = cookieIndexOrder.concat(otherIndexes)
   } else {
     // 未开启公平模式，则按照顺序互助，前面的先互助满
-    for (let idx = 0; idx < cookies.length; idx++) {
+    for (let idx = 0; idx < cookiesArr.length; idx++) {
       cookieIndexOrder.push(idx)
     }
   }
@@ -65,14 +65,14 @@ let notify, allMessage = '';
 
   console.log("开始助力")
   // 最多尝试2*账号数目次，避免无限尝试，保底
-  let remainingTryCount = 2 * cookies.length
+  let remainingTryCount = 2 * cookiesArr.length
   let helpIndex = 0
-  while (helpIndex < cookies.length && tools.length > 0 && remainingTryCount > 0) {
+  while (helpIndex < cookiesArr.length && tools.length > 0 && remainingTryCount > 0) {
     let cookieIndex = cookieIndexOrder[helpIndex]
 
     try {
       // 按需获取账号的锦鲤信息
-      let help = await getHelpInfoForCk(cookieIndex, cookies[cookieIndex])
+      let help = await getHelpInfoForCk(cookieIndex, cookiesArr[cookieIndex])
       if (help) {
         while (tools.length > 0 && remainingTryCount > 0) {
           console.info('')
@@ -463,7 +463,7 @@ async function updateLog(log) {
 async function requireConfig() {
   return new Promise(async resolve => {
     notify = $.isNode() ? require('./sendNotify') : '';
-    const jdCookieNode = $.isNode() ? require('./jdCookieAll.js') : '';
+    const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
      // if(+process.env.CONTAINER_NO !== 2) return;
     if ($.isNode()) {
       Object.keys(jdCookieNode).forEach((item) => {

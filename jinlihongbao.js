@@ -19,8 +19,8 @@ TG学习交流群：https://t.me/cdles
 
 const $ = new Env("愤怒的锦鲤")
 const JD_API_HOST = 'https://api.m.jd.com';
-// const ua = `jdapp;iPhone;11.0.2;${Math.ceil(Math.random() * 4 + 10)}.${Math.ceil(Math.random() * 4)};${randomString(40)}`
-const ua = `jdapp;iPhone;11.0.2;;;M/5.0;appBuild/168095;jdSupportDarkMode/0;ef/1;ep/%7B%22ciphertype%22%3A5%2C%22cipher%22%3A%7B%22ud%22%3A%22CtUzC2CmZtKnDwU5YzDrCJrrDzcnD2HsDwO5CtuzEJOzZJDsDWS0DK%3D%3D%22%2C%22sv%22%3A%22CJUkDG%3D%3D%22%2C%22iad%22%3A%22%22%7D%2C%22ts%22%3A1653702316%2C%22hdid%22%3A%22JM9F1ywUPwflvMIpYPok0tt5k9kW4ArJEU3lfLhxBqw%3D%22%2C%22version%22%3A%221.0.3%22%2C%22appname%22%3A%22com.360buy.jdmobile%22%2C%22ridx%22%3A-1%7D;Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1;`
+let ua = `jdapp;iPhone;11.0.2;;;M/5.0;appBuild/168095;jdSupportDarkMode/0;Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1;`
+let version = `11.0.2`
 let fair_mode = process.env.KOI_FAIR_MODE == "true" ? true : false
 let chetou_number = process.env.KOI_CHETOU_NUMBER ? Number(process.env.KOI_CHETOU_NUMBER) : 0
 let cookiesArr = []
@@ -371,6 +371,9 @@ async function helpThisUser(help, tool) {
 
   const item = await getLog() || {}
 
+  version = item.version
+  ua = item.userAgent
+
   await requestApi('jinli_h5assist', tool.cookie, {
     "redPacketId": help.redPacketId,
     "followShop": 0,
@@ -408,7 +411,7 @@ async function helpThisUser(help, tool) {
 async function requestApi(functionId, cookie, body = {}) {
   return new Promise(resolve => {
     $.post({
-      url: `${JD_API_HOST}/api?appid=jinlihongbao&functionId=${functionId}&loginType=2&client=jinlihongbao&t=${Date.now()}&clientVersion=11.0.2&osVersion=-1`,
+      url: `${JD_API_HOST}/api?appid=jinlihongbao&functionId=${functionId}&loginType=2&client=jinlihongbao&t=${Date.now()}&clientVersion=${version}&osVersion=-1`,
       headers: {
         "Cookie": cookie,
         'Accept' : `application/json, text/plain, */*`,
@@ -454,10 +457,13 @@ async function getLog() {
 async function updateLog(log) {
   try {
     return await $.http.post({url: `https://hcxm.xyz/api/update-log`,json: {log,locked: '1'}, timeout: 30 * 1000})
-
   }catch (e) {
     await updateLog(log)
   }
+}
+
+async function removeLog(log) {
+  await $.http.post({url: `https://hcxm.xyz/api/remove-log`,json: {log}, timeout: 30 * 1000})
 }
 
 async function requireConfig() {

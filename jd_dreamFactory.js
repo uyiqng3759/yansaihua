@@ -5,683 +5,915 @@
 
 */
 
-const $ = new Env('平行时空任务');
+const $ = new Env("平行时空任务");
 
-const axios = require("axios")
-const {format} = require("date-fns")
-const CryptoJS = require('crypto-js')
+const axios = require("axios");
+const { format } = require("date-fns");
+const CryptoJS = require("crypto-js");
 
-let fp = '', tk= '', genKey = null,UA = ''
+let fp = "",
+  tk = "",
+  genKey = null,
+  UA = "";
 
-async function requestAlgo(appId,ua) {
-  getUA()
+async function requestAlgo(appId, ua) {
+  getUA();
   function generateFp() {
     let e = "0123456789";
     let a = 13;
-    let i = '';
-    for (; a--;)
-      i += e[Math.random() * e.length | 0];
-    return (i + Date.now()).slice(0, 16)
+    let i = "";
+    for (; a--; ) i += e[(Math.random() * e.length) | 0];
+    return (i + Date.now()).slice(0, 16);
   }
 
-  fp = generateFp()
-  const algo = () => axios.post(`https://cactus.jd.com/request_algo?g_ty=ajax`, `{"version":"3.0","fp":"${fp}","appId":"${appId}","timestamp":${Date.now()},"platform":"web","expandParams":""}`, {
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      "Accept-Encoding": "gzip, deflate, br",
-      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-      'host': 'cactus.jd.com',
-      'Referer': 'https://cactus.jd.com',
-      'User-Agent': ua || UA,
-    }
-  }).catch(async ()=> await algo())
-  let { data } = await algo()
+  fp = generateFp();
+  const algo = () =>
+    axios
+      .post(
+        `https://cactus.jd.com/request_algo?g_ty=ajax`,
+        `{"version":"3.0","fp":"${fp}","appId":"${appId}","timestamp":${Date.now()},"platform":"web","expandParams":""}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            host: "cactus.jd.com",
+            Referer: "https://cactus.jd.com",
+            "User-Agent": ua || UA,
+          },
+        }
+      )
+      .catch(async () => await algo());
+  let { data } = await algo();
   tk = data.data.result.tk;
   genKey = new Function(`return ${data.data.result.algo}`)();
-  return {fp, tk, genKey}
+  return { fp, tk, genKey };
 }
 
 function geth5st(t, appId) {
-  let a = ''
-  t.forEach(({key, value}) => {
-    a += `${key}:${value}&`
-  })
-  a = a.slice(0, -1)
-  let time = Date.now()
+  let a = "";
+  t.forEach(({ key, value }) => {
+    a += `${key}:${value}&`;
+  });
+  a = a.slice(0, -1);
+  let time = Date.now();
   let timestamp = format(time, "yyyyMMddhhmmssSSS");
-  let hash1 = genKey(tk, fp.toString(), timestamp.toString(), appId.toString(), CryptoJS).toString(CryptoJS.enc.Hex);
+  let hash1 = genKey(
+    tk,
+    fp.toString(),
+    timestamp.toString(),
+    appId.toString(),
+    CryptoJS
+  ).toString(CryptoJS.enc.Hex);
   const hash2 = CryptoJS.HmacSHA256(a, hash1).toString();
-  return ["".concat(timestamp.toString()), "".concat(fp.toString()), "".concat(appId.toString()), "".concat(tk), "".concat(hash2), "3.0", "".concat(time.toString())].join(";")
+  return [
+    "".concat(timestamp.toString()),
+    "".concat(fp.toString()),
+    "".concat(appId.toString()),
+    "".concat(tk),
+    "".concat(hash2),
+    "3.0",
+    "".concat(time.toString()),
+  ].join(";");
 }
 
-const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
+const jdCookieNode = $.isNode() ? require("./jdCookie.js") : "";
 // const {requestAlgo, geth5st} = require("./utils/h5st")
-$.CryptoJS = $.isNode() ? require('crypto-js') : CryptoJS;
+$.CryptoJS = $.isNode() ? require("crypto-js") : CryptoJS;
 
 async function getLog() {
   try {
-    if ($.hot) return
-    const { body } = await $.http.get({url: `https://hcxm.xyz/api/get-newLog`,timeout: 30 * 1000})
-    const {newLog,num} = JSON.parse(body)
-    console.log(`剩余可用log数量为${num}`)
-    if(!num) {
-      console.log(`需要等待10分钟释放log`)
-      await $.wait(600 * 1000)
+    if ($.hot) return;
+    const { body } = await $.http.get({
+      url: `https://hcxm.xyz/api/get-newLog`,
+      timeout: 30 * 1000,
+    });
+    const { newLog, num } = JSON.parse(body);
+    $.UA = newLog.userAgent;
+    console.log(`剩余可用log数量为${num}`);
+    if (!num) {
+      console.log(`需要等待10分钟释放log`);
+      await $.wait(600 * 1000);
     }
-    await updateLog(newLog?.log)
-    return newLog
-  }catch (e) {
-    await getLog()
+    await updateLog(newLog?.log);
+    return newLog;
+  } catch (e) {
+    await getLog();
   }
 }
 
 async function updateLog(log) {
   try {
-    return await $.http.post({url: `https://hcxm.xyz/api/update-newLog`,json: {log,locked: '1'},timeout: 30 * 1000})
-  }catch (e) {
-    await updateLog(log)
+    return await $.http.post({
+      url: `https://hcxm.xyz/api/update-newLog`,
+      json: { log, locked: "1" },
+      timeout: 30 * 1000,
+    });
+  } catch (e) {
+    await updateLog(log);
   }
 }
 
-
 let cookiesArr = [],
-    cookie = '',
-    message;
-let secretp = '',
-    inviteId = []
+  cookie = "",
+  message;
+let inviteId = [];
 
 if ($.isNode()) {
   Object.keys(jdCookieNode).forEach((item) => {
-    cookiesArr.push(jdCookieNode[item])
-  })
-  if (process.env.JD_DEBUG && process.env.JD_DEBUG === 'false') console.log = () => {};
+    cookiesArr.push(jdCookieNode[item]);
+  });
+  if (process.env.JD_DEBUG && process.env.JD_DEBUG === "false")
+    console.log = () => {};
 } else {
-  cookiesArr = [$.getdata('CookieJD'), $.getdata('CookieJD2'), ...jsonParse($.getdata('CookiesJD') || "[]").map(item => item.cookie)].filter(item => !!item);
+  cookiesArr = [
+    $.getdata("CookieJD"),
+    $.getdata("CookieJD2"),
+    ...jsonParse($.getdata("CookiesJD") || "[]").map((item) => item.cookie),
+  ].filter((item) => !!item);
 }
-const JD_API_HOST = 'https://api.m.jd.com/client.action';
-let inviteCodes = [
+const JD_API_HOST = "https://api.m.jd.com/client.action";
 
-]
 $.shareCodesArr = [];
 
-!(async() => {
-  const { body } = await $.http.get({url: `https://hcxm.xyz/api/get-newLog`,timeout: 60 * 1000})
-  const { num } = JSON.parse(body)
-  if(!num)return
+!(async () => {
+  const { body } = await $.http.get({
+    url: `https://hcxm.xyz/api/get-newLog`,
+    timeout: 60 * 1000,
+  });
+  const { num } = JSON.parse(body);
+  if (!num) return;
   if (!cookiesArr[0]) {
-    $.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/bean/signIndex.action', { "open-url": "https://bean.m.jd.com/bean/signIndex.action" });
+    $.msg(
+      $.name,
+      "【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取",
+      "https://bean.m.jd.com/bean/signIndex.action",
+      { "open-url": "https://bean.m.jd.com/bean/signIndex.action" }
+    );
     return;
   }
   for (let i = 0; i < cookiesArr.length; i++) {
     if (cookiesArr[i]) {
       cookie = cookiesArr[i];
-      $.UserName = decodeURIComponent(cookie.match(/pt_pin=([^; ]+)(?=;?)/) && cookie.match(/pt_pin=([^; ]+)(?=;?)/)[1])
+      $.UserName = decodeURIComponent(
+        cookie.match(/pt_pin=([^; ]+)(?=;?)/) &&
+          cookie.match(/pt_pin=([^; ]+)(?=;?)/)[1]
+      );
       $.index = i + 1;
       $.isLogin = true;
-      $.nickName = '';
-      message = '';
-      console.log(`\n******开始【京东账号${$.index}】${$.nickName || $.UserName}*********\n`);
-      //   await shareCodesFormat()
-      await getUA()
+      $.nickName = "";
+      message = "";
+      console.log(
+        `\n******开始【京东账号${$.index}】${
+          $.nickName || $.UserName
+        }*********\n`
+      );
+      await getUA();
       try {
-        await get_secretp()
-
+        await get_secretp();
         do {
-          var conti = false
-          await promote_collectAtuoScore()
-          res = await promote_getTaskDetail()
+          var conti = false;
+          // await promote_collectAtuoScore();
+          res = await promote_getTaskDetail();
           for (var p = 0; p < res.lotteryTaskVos[0].badgeAwardVos.length; p++) {
             if (res.lotteryTaskVos[0].badgeAwardVos[p].status == 3) {
-              await promote_getBadgeAward(res.lotteryTaskVos[0].badgeAwardVos[p].awardToken)
+              await promote_getBadgeAward(
+                res.lotteryTaskVos[0].badgeAwardVos[p].awardToken
+              );
             }
           }
-          let task = []
-          let r = []
+          let task = [];
+          let r = [];
+          let item, time;
+          console.log(res.taskVos, 1);
           for (let p = 0; p < res.taskVos.length; p++) {
-            task = res.taskVos[p]
-            if (task.status != 1) continue
+            task = res.taskVos[p];
+            if (task.status != 1) continue;
             switch (task.taskType) {
-              case 7:
-              case 8:
-                // console.log(task,33)
-                // const time = task.waitDuration * 1000
-                // for (let i = 0; i < task.maxTimes; i++) {
-                //   const item = task.productInfoVos[i]
-                //   await promote_collectScore(item.taskToken, task.taskId)
-                //   await $.wait(time)
-                //   await qryViewkitCallbackResult(item.taskToken)
-                // }
-                break
+              case 0:
+                item = task.simpleRecordInfoVo || {};
+                if (item.taskToken) {
+                  await promote_collectScore(item.taskToken, task.taskId);
+                  await $.wait(300);
+                  await qryViewkitCallbackResult(item.taskToken);
+                }
+                break;
               case 3:
-              case 6:
+                time = task.waitDuration * 1000;
+                for (let i = 0; i < task.maxTimes; i++) {
+                  item =
+                    task.shoppingActivityVos && task.shoppingActivityVos[i];
+                  if (item) {
+                    await promote_collectScore(item.taskToken, task.taskId);
+                    await $.wait(time);
+                    await qryViewkitCallbackResult(item.taskToken);
+                  }
+                }
+                break;
+              case 7:
+                time = task.waitDuration * 1000;
+                for (let i = 0; i < task.maxTimes; i++) {
+                  item = task.browseShopVo && task.browseShopVo[i];
+                  if (item) {
+                    await promote_collectScore(item.taskToken, task.taskId);
+                    await $.wait(time);
+                    await qryViewkitCallbackResult(item.taskToken);
+                  }
+                }
+                break;
+              case 8:
+                time = task.waitDuration * 1000;
+                for (let i = 0; i < task.maxTimes; i++) {
+                  item = task.productInfoVos && task.productInfoVos[i];
+                  if (item) {
+                    await promote_collectScore(item.taskToken, task.taskId);
+                    await $.wait(time);
+                    await qryViewkitCallbackResult(item.taskToken);
+                  }
+                }
+                break;
+              case 9:
+                time = task.waitDuration * 1000;
+                for (let i = 0; i < task.maxTimes; i++) {
+                  item =
+                    task.shoppingActivityVos && task.shoppingActivityVos[i];
+                  if (item) {
+                    await promote_collectScore(item.taskToken, task.taskId);
+                    await $.wait(time);
+                    await qryViewkitCallbackResult(item.taskToken);
+                  }
+                }
+                break;
+              case 27:
+                item = task.simpleRecordInfoVo || {};
+                if (item.taskToken) {
+                  await promote_collectScore(item.taskToken, task.taskId);
+                  await $.wait(300);
+                  await qryViewkitCallbackResult(item.taskToken);
+                }
+                break;
+              case 19:
+                item = task.simpleRecordInfoVo || {};
+                if (item.taskToken) {
+                  await promote_collectScore(item.taskToken, task.taskId);
+                  await $.wait(300);
+                  await qryViewkitCallbackResult(item.taskToken);
+                }
+                break;
               case 26:
-                var tmp = []
+                var tmp = [];
                 if (task.taskType == 7) {
-                  tmp = task.browseShopVo
+                  tmp = task.browseShopVo;
                 } else {
-                  tmp = task.shoppingActivityVos
+                  tmp = task.shoppingActivityVos;
                 }
                 for (var o = 0; o < tmp.length; o++) {
-                  console.log(`\n\n ${tmp[o].title?tmp[o].title:tmp[o].shopName}`)
+                  console.log(
+                    `\n\n ${tmp[o].title ? tmp[o].title : tmp[o].shopName}`
+                  );
                   if (tmp[o].status == 1) {
-                    conti = true
-                    await promote_collectScore(tmp[o].taskToken, task.taskId)
+                    conti = true;
+                    await promote_collectScore(tmp[o].taskToken, task.taskId);
                   }
                 }
-                await $.wait(8000)
+                await $.wait(8000);
                 for (var o = 0; o < tmp.length; o++) {
                   if (tmp[o].status == 1) {
-                    conti = true
-                    await qryViewkitCallbackResult(tmp[o].taskToken)
+                    conti = true;
+                    await qryViewkitCallbackResult(tmp[o].taskToken);
                   }
                 }
-                break
+                break;
               case 2:
-                r = await promote_getFeedDetail(task.taskId)
+                r = await promote_getFeedDetail(task.taskId);
                 var t = 0;
                 for (var o = 0; o < r.productInfoVos.length; o++) {
                   if (r.productInfoVos[o].status == 1) {
-                    conti = true
-                    await promote_collectScore(r.productInfoVos[o].taskToken, task.taskId)
-                    t++
-                    if (t >= 5) break
+                    conti = true;
+                    await promote_collectScore(
+                      r.productInfoVos[o].taskToken,
+                      task.taskId
+                    );
+                    t++;
+                    if (t >= 5) break;
                   }
                 }
-                break
+                break;
               case 5:
-                r = await promote_getFeedDetail2(task.taskId)
+                r = await promote_getFeedDetail2(task.taskId);
                 var t = 0;
                 for (var o = 0; o < r.browseShopVo.length; o++) {
                   if (r.browseShopVo[o].status == 1) {
-                    conti = true
-                    await promote_collectScore(r.browseShopVo[o].taskToken, task.taskId)
-                    t++
-                    if (t >= 5) break
+                    conti = true;
+                    await promote_collectScore(
+                      r.browseShopVo[o].taskToken,
+                      task.taskId
+                    );
+                    t++;
+                    if (t >= 5) break;
                   }
                 }
-                break
+                break;
               case 21:
                 for (var o = 0; o < task.brandMemberVos.length; o++) {
                   if (task.brandMemberVos[o].status == 1) {
-                    console.log(`\n\n ${task.brandMemberVos[o].title}`)
-                    memberUrl = task.brandMemberVos[o].memberUrl
-                    memberUrl = transform(memberUrl)
-                    await requestAlgo(process.env.appId, $.UA)
-                    await join(task.brandMemberVos[o].vendorIds, memberUrl.channel, memberUrl.shopId ? memberUrl.shopId : "")
-                    await promote_collectScore(task.brandMemberVos[o].taskToken, task.taskId)
+                    console.log(`\n\n ${task.brandMemberVos[o].title}`);
+                    memberUrl = task.brandMemberVos[o].memberUrl;
+                    memberUrl = transform(memberUrl);
+                    await requestAlgo(process.env.appId, $.UA);
+                    await join(
+                      task.brandMemberVos[o].vendorIds,
+                      memberUrl.channel,
+                      memberUrl.shopId ? memberUrl.shopId : ""
+                    );
+                    await promote_collectScore(
+                      task.brandMemberVos[o].taskToken,
+                      task.taskId
+                    );
                   }
                 }
             }
           }
-          await $.wait(1000)
-        } while (conti)
-        await promote_sign()
+          await $.wait(1000);
+        } while (conti);
+        await promote_sign();
         // do {
         //   var ret = await promote_raise()
         // } while (ret)
-        console.log(`\n\n助力码：${res.inviteId}\n`)
+        console.log(`\n\n助力码：${res.inviteId}\n`);
+        await $.wait(8000);
         // $.newShareCodes.push(res.inviteId)
-        inviteId.push(res.inviteId)
+        // if(res.inviteId) {
+        //   inviteId.push(res.inviteId)
+        // }
       } catch (e) {
-        $.log('', `❌ ${$.name}, 失败! 原因: ${e}!`, '')
+        $.log("", `❌ ${$.name}, 失败! 原因: ${e}!`, "");
       }
     }
   }
 
-  for (let i = 0; i < inviteId.length; i++) {
-    console.log(`\n开始助力 【${inviteId[i]}】`)
-    let res = await promote_collectScore1(inviteId[i])
-    if (res && res['data'] && res['data']['bizCode'] === 0) {
-      if (res['data']['result']['toasts'] && res['data']['result']['toasts'][0] && res['data']['result']['toasts'][0]['status'] === '3') {
-        console.log(`助力次数已耗尽，跳出`)
-        break
+  for (let i = 0; i < cookiesArr.length; i++) {
+    cookie = cookiesArr[i];
+    for (let p = 0; p < inviteId.length; p++) {
+      console.log(`\n开始助力 【${inviteId[p]}】`);
+      let res = await promote_collectScore1(inviteId[p]);
+      await $.wait(8000);
+      if (res && res["data"] && res["data"]["bizCode"] === 0) {
+        if (
+          res["data"]["result"]["toasts"] &&
+          res["data"]["result"]["toasts"][0] &&
+          res["data"]["result"]["toasts"][0]["status"] === "3"
+        ) {
+          console.log(`助力次数已耗尽，跳出`);
+          break;
+        }
+        if (
+          res["data"]["result"]["toasts"] &&
+          res["data"]["result"]["toasts"][0]
+        ) {
+          console.log(
+            `助力 【${inviteId[i]}】:${res.data.result.toasts[0].msg}`
+          );
+        }
       }
-      if (res['data']['result']['toasts'] && res['data']['result']['toasts'][0]) {
-        console.log(`助力 【${inviteId[i]}】:${res.data.result.toasts[0].msg}`)
+      if (
+        (res && res["status"] && res["status"] === "3") ||
+        (res && res.data && res.data.bizCode === -11)
+      ) {
+        // 助力次数耗尽 || 黑号
+        break;
       }
-    }
-    if ((res && res['status'] && res['status'] === '3') || (res && res.data && res.data.bizCode === -11)) {
-      // 助力次数耗尽 || 黑号
-      break
     }
   }
 })()
-    .catch((e) => {
-      $.log('', `❌ ${$.name}, 失败! 原因: ${e}!`, '')
-    })
-    .finally(() => {
-      $.done();
-    })
+  .catch((e) => {
+    $.log("", `❌ ${$.name}, 失败! 原因: ${e}!`, "");
+  })
+  .finally(() => {
+    $.done();
+  });
 
 function transform(str) {
-  var REQUEST = new Object,
-      data = str.slice(str.indexOf("?") + 1, str.length - 1),
-      aParams = data.substr(1).split("&");
+  var REQUEST = new Object(),
+    data = str.slice(str.indexOf("?") + 1, str.length - 1),
+    aParams = data.substr(1).split("&");
   for (i = 0; i < aParams.length; i++) {
     var aParam = aParams[i].split("=");
-    REQUEST[aParam[0]] = aParam[1]
+    REQUEST[aParam[0]] = aParam[1];
   }
-  return REQUEST
+  return REQUEST;
 }
 
 function get_secretp() {
   let body = {};
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_getHomeData", body), async(err, resp, data) => {
-      //console.log(data)
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code == 0) {
-              if (data.data && data.data.bizCode === 0) {
-                // secretp = data.data.result.homeMainInfo.secretp
-                // console.log(data.data.result)
-                const homeMainInfo =  data.data.result.homeMainInfo
-                // console.log(homeMainInfo.raiseInfo.sceneDetails)
-                // process.exit(1)
+    $.post(
+      taskPostUrl("promote_getHomeData", body),
+      async (err, resp, data) => {
+        //console.log(data)
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code == 0) {
+                if (data.data && data.data.bizCode === 0) {
+                  // secretp = data.data.result.homeMainInfo.secretp
+                  // console.log(data.data.result)
+                  const homeMainInfo = data.data.result.homeMainInfo;
+                  // console.log(homeMainInfo.raiseInfo.sceneDetails)
+                  // process.exit(1)
+                }
+              } else if (data.code != 0) {
+                //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
               }
-            } else
-            if (data.code != 0) {
-              //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 async function promote_sign() {
-  const {log,random} = await getLog()
-  let body = {log,random  };
+  const { log, random } = await getLog();
+  let body = { log, random };
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_sign", body), async(err, resp, data) => {
+    $.post(taskPostUrl("promote_sign", body), async (err, resp, data) => {
       try {
         if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
+          console.log(`${JSON.stringify(err)}`);
+          console.log(`${$.name} API请求失败，请检查网路重试`);
         } else {
           if (safeGet(data)) {
             data = JSON.parse(data);
             if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-
-                console.log(`\n\n 签到成功`)
-                resolve(true)
+              if (data.data && data["data"]["bizCode"] === 0) {
+                console.log(`\n\n 签到成功`);
+                resolve(true);
               } else {
-                resolve(false)
+                resolve(false);
               }
             } else {
-              console.log(`\n\n签到失败:${JSON.stringify(data)}\n`)
-              resolve(false)
+              console.log(`\n\n签到失败:${JSON.stringify(data)}\n`);
+              resolve(false);
             }
           }
         }
       } catch (e) {
-        $.logErr(e, resp)
+        $.logErr(e, resp);
       } finally {
         resolve(data);
       }
-    })
-  })
+    });
+  });
 }
 
 async function promote_raise() {
-  const {log,random} = await getLog()
-  let body = {"scenceId":4,log,random  };
+  const { log, random } = await getLog();
+  let body = { scenceId: 4, log, random };
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_raise", body), async(err, resp, data) => {
+    $.post(taskPostUrl("promote_raise", body), async (err, resp, data) => {
       try {
         if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
+          console.log(`${JSON.stringify(err)}`);
+          console.log(`${$.name} API请求失败，请检查网路重试`);
         } else {
           if (safeGet(data)) {
             data = JSON.parse(data);
             if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-
-                console.log(`\n\n 升级成功`)
-                resolve(true)
+              if (data.data && data["data"]["bizCode"] === 0) {
+                console.log(`\n\n 升级成功`);
+                resolve(true);
               } else {
-                resolve(false)
+                resolve(false);
               }
             } else {
-              console.log(`\n\n升级失败:${JSON.stringify(data)}\n`)
-              resolve(false)
+              console.log(`\n\n升级失败:${JSON.stringify(data)}\n`);
+              resolve(false);
             }
           }
         }
       } catch (e) {
-        $.logErr(e, resp)
+        $.logErr(e, resp);
       } finally {
         resolve(data);
       }
-    })
-  })
+    });
+  });
 }
 
 async function promote_collectAtuoScore() {
-  const {log,random} = await getLog()
+  const { log, random } = await getLog();
   let body = { log, random };
-  return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_collectAtuoScore", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
 
-                console.log(`\n\n 成功领取${data.data.result.produceScore}个币`)
+  return new Promise((resolve) => {
+    $.post(
+      taskPostUrl("promote_collectAtuoScore", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              console.log(data, 1);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  console.log(
+                    `\n\n 成功领取${data.data.result.produceScore}个币`
+                  );
+                }
+              } else {
+                //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
               }
-            } else {
-              //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function promote_getTaskDetail() {
   let body = {};
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_getTaskDetail", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                if (data.data.result.inviteId == null) {
-                  console.log("黑号")
-                  resolve("")
+    $.post(
+      taskPostUrl("promote_getTaskDetail", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  if (data.data.result.inviteId == null) {
+                    console.log("黑号");
+                    resolve("");
+                  }
+                  inviteId.push(data.data.result.inviteId);
+                  resolve(data.data.result);
                 }
-                inviteId.push(data.data.result.inviteId)
-                resolve(data.data.result)
+              } else {
+                //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
               }
-            } else {
-              //console.log(`\n\nsecretp失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 async function promote_collectScore(taskToken, taskId) {
-  const {log,random} = await getLog()
-  let body = { "taskId": taskId, "taskToken": taskToken, "actionType": 1,  log, random  };
+  const { log, random } = await getLog();
+  let body = {
+    taskId: taskId,
+    taskToken: taskToken,
+    actionType: 1,
+    log,
+    random,
+  };
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_collectScore", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                console.log(data.msg)
+    $.post(
+      taskPostUrl("promote_collectScore", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code === 0) {
+                console.log(data);
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  console.log(data.msg);
+                }
+              } else {
+                console.log(`\n\n 失败:${JSON.stringify(data)}\n`);
               }
-            } else {
-              console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
-
 async function promote_collectScore1(inviteId) {
-  const {log,random} = await getLog()
-  let body = { inviteId,  log, random  };
+  const { log, random } = await getLog();
+  let body = { inviteId, log, random };
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_collectScore", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            console.log(data)
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                console.log(data.msg)
-                console.log(data.data.result)
+    $.post(
+      taskPostUrl("promote_collectScore", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              console.log(data);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  console.log(data.msg);
+                  console.log(data.data.result);
+                }
+              } else {
+                console.log(`\n\n 失败:${JSON.stringify(data)}\n`);
               }
-            } else {
-              console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 async function qryViewkitCallbackResult(taskToken) {
-  let body = {"dataSource":"newshortAward","method":"getTaskAward","reqParams":{taskToken}};
+  let body = {
+    dataSource: "newshortAward",
+    method: "getTaskAward",
+    reqParams: `{\"taskToken\":"${taskToken}"}`,
+    sdkVersion: "1.0.0",
+    clientLanguage: "zh",
+    onlyTimeId: new Date().getTime(),
+    riskParam: {
+      platform: "3",
+      orgType: "2",
+      openId: "-1",
+      pageClickKey: "Babel_VKCoupon",
+      eid: "",
+      fp: "-1",
+      shshshfp: "",
+      shshshfpa: "",
+      shshshfpb: "",
+      childActivityUrl: "",
+      userArea: "-1",
+      client: "",
+      clientVersion: "",
+      uuid: "",
+      osVersion: "",
+      brand: "",
+      model: "",
+      networkType: "",
+      jda: "-1",
+    },
+  };
   return new Promise((resolve) => {
-    $.post(taskPostUrl2("qryViewkitCallbackResult", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            if (data.indexOf("已完成") != -1) {
-              data = JSON.parse(data);
-              console.log(`\n\n ${data.toast.subTitle}`)
-            } else {
-              // console.log(`\n\n失败:${JSON.stringify(data)}\n`)
+    $.post(
+      taskPostUrl2("qryViewkitCallbackResult", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              if (data.indexOf("已完成") != -1) {
+                data = JSON.parse(data);
+                console.log(`\n\n ${data.toast.subTitle}`);
+              } else {
+                // console.log(`\n\n失败:${JSON.stringify(data)}\n`)
+              }
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function promote_getBadgeAward(taskToken) {
-  let body = { "awardToken": taskToken };
+  let body = { awardToken: taskToken };
 
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_getBadgeAward", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                for (let i = 0; i < data.data.result.myAwardVos.length; i++) {
-                  switch (data.data.result.myAwardVos[i].type) {
-                    case 15:
-                      console.log(`\n\n 获得${data.data.result.myAwardVos[i].pointVo.score}币`)
-                      break
-                    case 1:
-                      //console.log(`\n\n 获得优惠券 满${data.result.myAwardVos[1].couponVo.usageThreshold}-${data.result.myAwardVos[i].couponVo.quota}  ${data.result.myAwardVos[i].couponVo.useRange}`)
-                      break
+    $.post(
+      taskPostUrl("promote_getBadgeAward", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              console.log(data, 9);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  for (let i = 0; i < data.data.result.myAwardVos.length; i++) {
+                    switch (data.data.result.myAwardVos[i].type) {
+                      case 15:
+                        console.log(
+                          `\n\n 获得${data.data.result.myAwardVos[i].pointVo.score}币`
+                        );
+                        break;
+                      case 1:
+                        //console.log(`\n\n 获得优惠券 满${data.result.myAwardVos[1].couponVo.usageThreshold}-${data.result.myAwardVos[i].couponVo.quota}  ${data.result.myAwardVos[i].couponVo.useRange}`)
+                        break;
+                    }
                   }
                 }
+              } else {
+                console.log(`\n\n 失败:${JSON.stringify(data)}\n`);
               }
-            } else {
-              console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function promote_getFeedDetail(taskId) {
-  let body = { "taskId": taskId.toString() };
+  let body = { taskId: taskId.toString() };
 
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_getFeedDetail", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                resolve(data.data.result.addProductVos[0])
+    $.post(
+      taskPostUrl("promote_getFeedDetail", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  resolve(data.data.result.addProductVos[0]);
+                }
+              } else {
+                console.log(`\n\n 失败:${JSON.stringify(data)}\n`);
               }
-            } else {
-              console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function promote_getFeedDetail2(taskId) {
-  let body = { "taskId": taskId.toString() };
+  let body = { taskId: taskId.toString() };
 
   return new Promise((resolve) => {
-    $.post(taskPostUrl("promote_getFeedDetail", body), async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data);
-            if (data.code === 0) {
-              if (data.data && data['data']['bizCode'] === 0) {
-                resolve(data.data.result.taskVos[0])
+    $.post(
+      taskPostUrl("promote_getFeedDetail", body),
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            if (safeGet(data)) {
+              data = JSON.parse(data);
+              if (data.code === 0) {
+                if (data.data && data["data"]["bizCode"] === 0) {
+                  resolve(data.data.result.taskVos[0]);
+                }
+              } else {
+                console.log(`\n\n 失败:${JSON.stringify(data)}\n`);
               }
-            } else {
-              console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
             }
           }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function join(venderId, channel, shopId) {
-  let time = Date.now()
-  let s = Math.ceil(1e5 * Math.random())
-  let body = {"venderId": venderId,"shopId": shopId,"bindByVerifyCodeFlag":1,"registerExtend":{},"writeChildFlag":0,"activityId": '', "channel": channel}
-  let h5st = geth5st([{"key":"appid","value":"jd_shop_member"},{"key":"body","value":$.CryptoJS.SHA256($.toStr(body,body)).toString()},{"key":"client","value":"H5"},{"key":"clientVersion","value":"9.2.0"},{"key":"functionId","value":"bindWithVender"},{"key": "jsonp","value": `jsonp_${time}_${s}`}],'ef79a')
+  let time = Date.now();
+  let s = Math.ceil(1e5 * Math.random());
+  let body = {
+    venderId: venderId,
+    shopId: shopId,
+    bindByVerifyCodeFlag: 1,
+    registerExtend: {},
+    writeChildFlag: 0,
+    activityId: "",
+    channel: channel,
+  };
+  let h5st = geth5st(
+    [
+      { key: "appid", value: "jd_shop_member" },
+      { key: "body", value: $.CryptoJS.SHA256($.toStr(body, body)).toString() },
+      { key: "client", value: "H5" },
+      { key: "clientVersion", value: "9.2.0" },
+      { key: "functionId", value: "bindWithVender" },
+      { key: "jsonp", value: `jsonp_${time}_${s}` },
+    ],
+    "ef79a"
+  );
   return new Promise((resolve) => {
-    $.get({
-      url: `https://api.m.jd.com/client.action?appid=jd_shop_member&functionId=bindWithVender&body=${encodeURIComponent(JSON.stringify(body))}&client=H5&clientVersion=9.2.0&uuid=88888&h5st=${encodeURIComponent(h5st)}&jsonp=jsonp_${time}_${s}`,
-      headers: {
-        'Content-Type': 'text/plain; Charset=UTF-8',
-        'Cookie': cookie,
-        'Host': 'api.m.jd.com',
-        'Connection': 'keep-alive',
-        "User-Agent": $.UA,
-        'Accept-Language': 'zh-cn',
-        'Referer': `https://shopmember.m.jd.com/shopcard/?venderId=${venderId}&shopId=${venderId}&venderType=5&channel=401&returnUrl=https://lzdz1-isv.isvjcloud.com/dingzhi/personal/care/activity/4540555?activityId=dz210768869313`,
-        'Accept-Encoding': 'gzip, deflate, br'
-      }
-    }, async(err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} API请求失败，请检查网路重试`)
-        } else {
-          console.log(data)
-          // if (safeGet(data)) {
-          //   if (data.indexOf("成功") != -1) {
-          //     console.log(`\n\n 入会成功\n`)
-          //   } else {
-          //     console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
-          //   }
-          // }
+    $.get(
+      {
+        url: `https://api.m.jd.com/client.action?appid=jd_shop_member&functionId=bindWithVender&body=${encodeURIComponent(
+          JSON.stringify(body)
+        )}&client=H5&clientVersion=9.2.0&uuid=88888&h5st=${encodeURIComponent(
+          h5st
+        )}&jsonp=jsonp_${time}_${s}`,
+        headers: {
+          "Content-Type": "text/plain; Charset=UTF-8",
+          Cookie: cookie,
+          Host: "api.m.jd.com",
+          Connection: "keep-alive",
+          "User-Agent": $.UA,
+          "Accept-Language": "zh-cn",
+          Referer: `https://shopmember.m.jd.com/shopcard/?venderId=${venderId}&shopId=${venderId}&venderType=5&channel=401&returnUrl=https://lzdz1-isv.isvjcloud.com/dingzhi/personal/care/activity/4540555?activityId=dz210768869313`,
+          "Accept-Encoding": "gzip, deflate, br",
+        },
+      },
+      async (err, resp, data) => {
+        try {
+          if (err) {
+            console.log(`${JSON.stringify(err)}`);
+            console.log(`${$.name} API请求失败，请检查网路重试`);
+          } else {
+            console.log(data);
+            // if (safeGet(data)) {
+            //   if (data.indexOf("成功") != -1) {
+            //     console.log(`\n\n 入会成功\n`)
+            //   } else {
+            //     console.log(`\n\n 失败:${JSON.stringify(data)}\n`)
+            //   }
+            // }
+          }
+        } catch (e) {
+          $.logErr(e, resp);
+        } finally {
+          resolve(data);
         }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data);
       }
-    })
-  })
+    );
+  });
 }
 
 function taskPostUrl(functionId, body) {
   return {
     //functionId=promote_getHomeData&body={}&client=wh5&clientVersion=1.0.0
     url: `${JD_API_HOST}`,
-    body: `functionId=${functionId}&body=${escape(JSON.stringify(body))}&client=m&clientVersion=-1&appid=signed_wh5`,
+    body: `functionId=${functionId}&body=${escape(
+      JSON.stringify(body)
+    )}&client=m&clientVersion=-1&appid=signed_wh5`,
     headers: {
-      'Cookie': cookie,
-      'Host': 'api.m.jd.com',
-      'Connection': 'keep-alive',
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Cookie: `pt_key=app_openAAJjG0icADD2JgfQtLz1R6Tfvuotvx_vZPL0_cqI_CSHlld3GSL5QHPDjLFWwKUR4WxWDc1Slcw; pt_pin=jd_ZzYkOLWfaivm; b_avif=0; b_dh=926; b_dpr=3; b_dw=428; b_webp=1; webp=1; __wga=1653885112508.1653885112508.1653885112508.1653885112508.1.1`,
+      Host: "api.m.jd.com",
+      Connection: "keep-alive",
+      "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": $.UA,
-      'Origin': 'https://wbbny.m.jd.com',
-      'Accept-Language': 'zh-cn',
-      'Accept-Encoding': 'gzip, deflate, br',
-    }
-  }
+      Origin: "https://bunearth.m.jd.com/",
+      Referer: "https://bunearth.m.jd.com/",
+      "Accept-Language": "zh-cn",
+      "Accept-Encoding": "gzip, deflate, br",
+    },
+  };
 }
 
 function taskPostUrl2(functionId, body) {
@@ -689,42 +921,41 @@ function taskPostUrl2(functionId, body) {
     url: `${JD_API_HOST}?functionId=${functionId}&client=wh5`,
     body: `body=${escape(JSON.stringify(body))}`,
     headers: {
-      'Cookie': cookie,
-      'Host': 'api.m.jd.com',
-      'Connection': 'keep-alive',
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Cookie:
+        "pt_key=app_openAAJjG0icADD2JgfQtLz1R6Tfvuotvx_vZPL0_cqI_CSHlld3GSL5QHPDjLFWwKUR4WxWDc1Slcw; pt_pin=jd_ZzYkOLWfaivm;",
+      Host: "api.m.jd.com",
+      Connection: "keep-alive",
+      "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": $.UA,
-      'Accept-Language': 'zh-cn',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Origin': 'https://wbbny.m.jd.com',
-    }
-  }
+      "Accept-Language": "zh-cn",
+      "Accept-Encoding": "gzip, deflate, br",
+      Origin: "https://bunearth.m.jd.com/",
+    },
+  };
 }
 
-
-
-function getUA() {
-  $.UA = `jdapp;android;10.0.6;11;9363537336739353-2636733333439346;network/wifi;model/KB2000;addressid/138121554;aid/9657c795bc73349d;oaid/;osVer/30;appBuild/88852;partner/oppo;eufv/1;jdSupportDarkMode/0;Mozilla/5.0 (Linux; Android 11; KB2000 Build/RP1A.201005.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/77.0.3865.120 MQQBrowser/6.2 TBS/045537 Mobile Safari/537.36`
+async function getUA() {
+  $.UA = `jdapp;iPhone;11.2.5;${randomString(
+    40
+  )};network/wifi;model/iPhone8,1;addressid/2308460611;appBuild/167814;jdSupportDarkMode/0;Mozilla/5.0 (iPhone; CPU iPhone OS 13_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1`;
 }
 
 function randomString(e) {
   e = e || 32;
   let t = "abcdef0123456789",
-      a = t.length,
-      n = "";
-  for (i = 0; i < e; i++)
-    n += t.charAt(Math.floor(Math.random() * a));
-  return n
+    a = t.length,
+    n = "";
+  for (i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
+  return n;
 }
 
 function randomNum(e) {
   e = e || 32;
   let t = "0123456789",
-      a = t.length,
-      n = "";
-  for (i = 0; i < e; i++)
-    n += t.charAt(Math.floor(Math.random() * a));
-  return n
+    a = t.length,
+    n = "";
+  for (i = 0; i < e; i++) n += t.charAt(Math.floor(Math.random() * a));
+  return n;
 }
 
 function safeGet(data) {
@@ -745,7 +976,11 @@ function jsonParse(str) {
       return JSON.parse(str);
     } catch (e) {
       console.log(e);
-      $.msg($.name, '', '请勿随意在BoxJs输入框修改内容\n建议通过脚本去获取cookie')
+      $.msg(
+        $.name,
+        "",
+        "请勿随意在BoxJs输入框修改内容\n建议通过脚本去获取cookie"
+      );
       return [];
     }
   }
